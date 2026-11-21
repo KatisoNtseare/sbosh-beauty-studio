@@ -30,11 +30,13 @@ const serviceSnapshotSchema = new Schema({
 }, { _id: false });
 
 const extraLineSchema = new Schema({ key: String, name: String, method: { type: String, enum: ["PER_NAIL", "PER_DESIGN"] }, unitPrice: Number, quantity: Number, subtotal: Number, durationMinutes: Number, componentId: String, componentName: String }, { _id: false });
+const bookingItemSnapshotSchema = new Schema({ id: Schema.Types.ObjectId, kind: { type: String, enum: ["service", "package"] }, name: String, price: Number, priceConfirmed: Boolean, durationMinutes: Number }, { _id: false });
 
 const bookingSchema = new Schema({
   reference: { type: String, required: true, unique: true, index: true },
   customer: { name: { type: String, required: true }, phone: { type: String, default: "" }, email: { type: String, lowercase: true, trim: true } },
   service: { type: serviceSnapshotSchema, required: true },
+  items: { type: [bookingItemSnapshotSchema], default: [] },
   extras: { type: [extraLineSchema], default: [] },
   totalPrice: { type: Number, min: 0 },
   priceNeedsConfirmation: { type: Boolean, default: false },

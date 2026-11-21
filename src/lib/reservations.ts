@@ -15,6 +15,9 @@ export async function reserveInterval(date: string, bookingId: unknown, start: n
   const paddedStart = Math.max(0, start - buffer);
   const paddedEnd = Math.min(1440, end + buffer);
   if (!session) await ensureReservationDay(date);
+  let sameReservationQuery = ReservationDay.findOne({ date, reservations: { $elemMatch: { bookingId, rawStart: start, rawEnd: end } } }).select("_id");
+  if (session) sameReservationQuery = sameReservationQuery.session(session);
+  if (await sameReservationQuery.lean()) return true;
   const conflict = { start: { $lt: paddedEnd }, end: { $gt: paddedStart }, ...(ignoreBookingId ? { bookingId: { $ne: ignoreBookingId } } : {}) };
   const filter: Record<string, unknown> = { date, reservations: { $not: { $elemMatch: conflict } } };
   if (ignoreBookingId) filter.$and = [{ reservations: { $not: { $elemMatch: { bookingId: ignoreBookingId, rawStart: start, rawEnd: end } } } }];

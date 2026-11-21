@@ -1,6 +1,6 @@
 export type ServiceClassification = "LASHES" | "NAILS" | "TOES" | "GENERAL";
 export type ServiceFields = { name: string; description: string; fullDescription: string; category: string; classification: ServiceClassification; priceLabel: string; price?: number; priceConfirmed: boolean; durationMinutes?: number; durationConfirmed: boolean; extras: { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN"; durationMinutes?: number }[]; minimumPrice?: number; maximumPrice?: number; displayOrder: number; active: boolean };
-export type CustomerFields = { name: string; phone?: string; email: string; description: string };
+export type CustomerFields = { name: string; phone: string; email?: string; description: string };
 
 export function classifyService(category: unknown, name: unknown): ServiceClassification {
   const source = (String(category ?? "") + " " + String(name ?? "")).toLowerCase();
@@ -15,8 +15,8 @@ export function validateCustomerFields(input: Record<string, unknown>): Customer
   const phone = String(input.phone ?? "").trim();
   const email = String(input.email ?? "").trim().toLowerCase();
   const description = String(input.description ?? "").trim();
-  if (name.length < 2 || name.length > 120 || phone.length > 30 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || description.length > 5000) return null;
-  return { name, ...(phone ? { phone } : {}), email, description };
+  if (name.length < 2 || name.length > 120 || phone.length < 7 || phone.length > 30 || !/^[+\d][+\d ()-]{6,29}$/.test(phone) || (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)) || description.length > 5000) return null;
+  return { name, phone, ...(email ? { email } : {}), description };
 }
 
 export function canTransitionBooking(status: string, action: string) {

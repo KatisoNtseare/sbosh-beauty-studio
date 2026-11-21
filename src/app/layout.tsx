@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { businessProfile } from "@/lib/brand";
+import ToastViewport from "@/components/ToastViewport";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -31,6 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cormorant.variable} ${montserrat.variable}`}>
       <body className="flex min-h-screen flex-col">
+        <ToastViewport />
         <Navbar />
         <main className="flex-1">{children}</main>
         <Footer />

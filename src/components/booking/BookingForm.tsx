@@ -1,18 +1,22 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
+import { toast } from "react-toastify";
 import { cn } from "@/lib/utils";
 import { buttonStyles } from "@/lib/button";
-import { studioContact } from "@/lib/data";
+import { businessProfile } from "@/lib/brand";
 import { todayInSalon } from "@/lib/timezone";
+import { addCartEntry, getCartSnapshot, getServerCartSnapshot, saveCart, subscribeCart, type CartEntry } from "@/lib/cart";
 
 type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN"; durationMinutes?: number; componentName?: string };
 type CatalogueItem = { _id: string; name: string; description: string; fullDescription?: string; image: string; category: string; price?: number; priceConfirmed: boolean; durationMinutes?: number; isPackage?: boolean; components?: { name: string }[]; extras?: Extra[] };
-type BookingToast = { id: number; type: "success" | "error"; message: string };
+type BookingResult = { reference: string; status: string; totalPrice: number | null; priceNeedsConfirmation: boolean; preferredDate: string; preferredTime: string; items: { name: string; price?: number; priceConfirmed: boolean }[]; extras: { name: string; quantity: number; unitPrice: number; subtotal: number }[] };
+type CartLine = { entry: CartEntry; item?: CatalogueItem };
 const input = "h-12 w-full rounded-xl border border-taupe bg-white px-3.5 text-ink";
-const selectionValue = (item?: CatalogueItem) => item ? `${item.isPackage ? "package" : "service"}:${item._id}` : "";
+const lineKey = (line: CartEntry) => `${line.kind}:${line.id}`;
 const methodLabel = (extra: Extra) => extra.method === "PER_NAIL" ? "per nail" : "per design";
 
 function BookingImage({ item }: { item: CatalogueItem }) {
@@ -22,34 +26,27 @@ function BookingImage({ item }: { item: CatalogueItem }) {
 
 export default function BookingForm() {
   const query = useSearchParams();
+  const queryService = query.get("service") ?? "";
+  const queryPackage = query.get("package") ?? "";
   const [services, setServices] = useState<CatalogueItem[]>([]);
   const [packages, setPackages] = useState<CatalogueItem[]>([]);
+  const cart = useSyncExternalStore(subscribeCart, getCartSnapshot, getServerCartSnapshot);
   const [itemsLoaded, setItemsLoaded] = useState(false);
   const [serviceError, setServiceError] = useState("");
-  const [selection, setSelection] = useState(() => query.get("package") ? `package:${query.get("package")}` : query.get("service") ? `service:${query.get("service")}` : "");
-  const [extraQuantities, setExtraQuantities] = useState<Record<string, number>>({});
   const [date, setDate] = useState("");
   const [times, setTimes] = useState<string[]>([]);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("Choose a date to see available times.");
   const [time, setTime] = useState("");
-  const [success, setSuccess] = useState("");
-  const [toast, setToast] = useState<BookingToast | null>(null);
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState<BookingResult | null>(null);
+  const [validationError, setValidationError] = useState("");
   const idempotencyKey = useRef("");
-  const item = [...services, ...packages].find((entry) => selectionValue(entry) === selection);
-  const itemId = item?._id;
-  const itemIsPackage = item?.isPackage;
-  const chosenExtras = useMemo(() => Object.entries(extraQuantities).filter(([, quantity]) => quantity > 0).map(([key, quantity]) => ({ key, quantity })), [extraQuantities]);
-  const extrasQuery = JSON.stringify(chosenExtras);
-  const extraTotal = (item?.extras ?? []).filter((extra) => (extraQuantities[extra.key] ?? 0) > 0).reduce((total, extra) => total + extra.unitPrice * (extraQuantities[extra.key] ?? 0), 0);
-  const total = item?.priceConfirmed && typeof item.price === "number" ? item.price + extraTotal : undefined;
 
   useEffect(() => {
-    if (!toast) return;
-    const timeout = window.setTimeout(() => setToast(null), 6500);
-    return () => window.clearTimeout(timeout);
-  }, [toast]);
+    const requested = queryPackage ? { kind: "package" as const, id: queryPackage } : queryService ? { kind: "service" as const, id: queryService } : null;
+    if (requested) addCartEntry(requested);
+  }, [queryPackage, queryService]);
 
   useEffect(() => {
     fetch("/api/services").then(async (response) => {
@@ -59,50 +56,141 @@ export default function BookingForm() {
     }).catch((error: Error) => setServiceError(error.message)).finally(() => setItemsLoaded(true));
   }, []);
 
-  useEffect(() => {
-    if (!date || !itemId) return;
-    const controller = new AbortController();
-    let timedOut = false;
-    const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 15_000);
-    const params = new URLSearchParams({ date, [itemIsPackage ? "packageId" : "serviceId"]: itemId, extras: extrasQuery });
-    fetch("/api/availability?" + params.toString(), { signal: controller.signal })
-      .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error || "Availability could not be loaded."); setTimes(data.times ?? []); setAvailabilityMessage(data.error || (data.times?.length ? "Choose one of the available times." : "There are no available appointments on this date.")); })
-      .catch((error: unknown) => { if (error instanceof DOMException && error.name === "AbortError") { if (timedOut) { setAvailabilityMessage("Availability took too long to load. Please choose the date again."); setAvailabilityLoading(false); } return; } setTimes([]); setAvailabilityMessage(error instanceof Error ? error.message : "Availability could not be loaded."); })
-      .finally(() => { window.clearTimeout(timeout); if (!controller.signal.aborted) setAvailabilityLoading(false); });
-    return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [date, itemId, itemIsPackage, extrasQuery]);
+  const lines = useMemo<CartLine[]>(() => cart.map((entry) => ({ entry, item: (entry.kind === "package" ? packages : services).find((item) => item._id === entry.id) })), [cart, packages, services]);
+  const itemsForQuote = useMemo(() => lines.filter((line): line is CartLine & { item: CatalogueItem } => Boolean(line.item)).map(({ entry }) => ({
+    ...(entry.kind === "package" ? { packageId: entry.id } : { serviceId: entry.id }),
+    extras: Object.entries(entry.extras).filter(([, quantity]) => quantity > 0).map(([key, quantity]) => ({ key, quantity })),
+  })), [lines]);
+  const quoteQuery = JSON.stringify(itemsForQuote);
+  const allDurationsSet = lines.length > 0 && lines.every((line) => Boolean(line.item?.durationMinutes));
+  const allPricesSet = lines.length > 0 && lines.every((line) => line.item?.priceConfirmed && typeof line.item.price === "number");
+  const extrasTotal = lines.reduce((sum, line) => sum + (line.item?.extras ?? []).reduce((itemSum, extra) => itemSum + extra.unitPrice * (line.entry.extras[extra.key] || 0), 0), 0);
+  const total = allPricesSet ? lines.reduce((sum, line) => sum + Number(line.item?.price), 0) + extrasTotal : null;
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (busy || !item) return;
-    const formElement = event.currentTarget; setBusy(true); setSuccess(""); setToast(null);
-    const form = new FormData(formElement);
-    if (!idempotencyKey.current) idempotencyKey.current = crypto.randomUUID();
-    const body = { name: form.get("name"), phone: form.get("phone"), email: form.get("email"), description: form.get("description"), date, time, extras: chosenExtras, ...(item.isPackage ? { packageId: item._id } : { serviceId: item._id }) };
-    try {
-      const response = await fetch("/api/bookings", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": idempotencyKey.current }, body: JSON.stringify(body) });
-      const result = await response.json(); if (!response.ok) throw new Error(result.error || "We couldn’t send your request.");
-      const message = result.priceNeedsConfirmation ? `Request ${result.reference} is saved for review. The studio will confirm the service price before approval.` : result.emailStatus === "FAILED" ? `Request ${result.reference} is saved and awaiting review. The studio’s email notification is delayed; your appointment is not confirmed yet.` : `Request ${result.reference} has been received and is awaiting review. Your appointment is not confirmed yet.`;
-      setSuccess(message); setToast({ id: Date.now(), type: "success", message: "Request received · " + result.reference });
-      formElement.reset(); setDate(""); setTime(""); setTimes([]); setAvailabilityLoading(false); setAvailabilityMessage("Choose a date to see available times."); setExtraQuantities({}); idempotencyKey.current = crypto.randomUUID();
-    } catch (error) { setToast({ id: Date.now(), type: "error", message: error instanceof Error ? error.message : "We couldn’t send your request." }); }
-    finally { setBusy(false); }
+  function updateCart(next: CartEntry[]) { saveCart(next); setSuccess(null); setTimes([]); setTime(""); setAvailabilityLoading(false); }
+  function updateExtra(entry: CartEntry, key: string, raw: string, extra: Extra) {
+    const quantity = raw === "" ? 0 : Number(raw);
+    if (!Number.isInteger(quantity) || quantity < 0 || quantity > 10) { toast.error("Enter a quantity from 0 to 10."); return; }
+    const next = cart.map((line) => lineKey(line) === lineKey(entry) ? { ...line, extras: { ...line.extras, [key]: quantity } } : line);
+    updateCart(next);
+    if (quantity) toast.success(`${extra.name} updated.`);
   }
 
-  return <>
-    {toast && <div key={toast.id} role={toast.type === "error" ? "alert" : "status"} aria-live={toast.type === "error" ? "assertive" : "polite"} className={cn("fixed inset-x-4 top-4 z-[100] mx-auto flex max-w-xl items-start gap-3 rounded-2xl border bg-white px-5 py-4 shadow-xl", toast.type === "success" ? "border-olive/30" : "border-rose/40")}><span aria-hidden="true" className={cn("mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-sm font-bold text-white", toast.type === "success" ? "bg-olive" : "bg-rose")}>{toast.type === "success" ? "✓" : "!"}</span><p className="flex-1 text-sm leading-6 text-ink">{toast.message}</p><button type="button" aria-label="Dismiss notification" onClick={() => setToast(null)} className="grid h-8 w-8 place-items-center rounded-full text-xl text-ink/55 hover:bg-sand">×</button></div>}
-    {success && <div role="status" className="mt-6 border-l-4 border-olive bg-sand/70 p-5 text-sm leading-6">{success}</div>}
-    <form onSubmit={submit} className="grid items-start gap-8 pb-16 pt-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="flex min-w-0 flex-col gap-8">
-        <section className="border-b border-line pb-8"><p className="mb-2 text-xs font-semibold text-gold">Your selection</p>
-          <label className="block max-w-xl text-sm font-medium">Service or package<select required value={selection} onChange={(event) => { const nextSelection = event.target.value; const nextItem = [...services, ...packages].find((entry) => selectionValue(entry) === nextSelection); setSelection(nextSelection); setExtraQuantities({}); setTimes([]); setTime(""); setAvailabilityLoading(Boolean(date && nextItem?.durationMinutes)); setAvailabilityMessage(nextItem?.durationMinutes ? "Checking available times…" : "Choose a date to see available times."); }} className={input + " mt-2"}><option value="">Choose from the menu</option><optgroup label="Services">{services.map((entry) => <option key={entry._id} value={`service:${entry._id}`}>{entry.name} · {entry.priceConfirmed && entry.price != null ? `R${entry.price}` : "price to be confirmed"}</option>)}</optgroup><optgroup label="Combination packages">{packages.map((entry) => <option key={entry._id} value={`package:${entry._id}`}>{entry.name} · {entry.priceConfirmed && entry.price != null ? `R${entry.price}` : "price to be confirmed"}</option>)}</optgroup></select></label>
-          {!item && <p className="mt-3 text-sm text-ink/65">{itemsLoaded ? serviceError || "Choose a service or package to continue." : "Loading the service menu…"}</p>}
-          {item && <div className="mt-5 grid gap-5 sm:grid-cols-[190px_1fr]"><BookingImage item={item}/><div><h2 className="font-display text-4xl">{item.name}</h2><p className="mt-2 text-sm leading-6 text-ink/70">{item.description || item.fullDescription || "Selected treatment at Sbosh's Beauty Studio."}</p>{item.components?.length ? <p className="mt-2 text-xs text-ink/60">Includes {item.components.map((component) => component.name).join(" + ")}</p> : null}<p className="mt-4 text-sm font-semibold">{item.priceConfirmed && item.price != null ? `R${item.price}` : "Price to be confirmed by the studio"}</p><p className="mt-1 text-xs text-ink/55">{item.durationMinutes ? `${item.durationMinutes} minutes` : "Appointment length needs confirmation before booking"}</p></div></div>}
-        </section>
-        {item?.extras?.length ? <section className="border-b border-line pb-8"><p className="mb-2 text-xs font-semibold text-gold">Optional finish</p><h2 className="mb-4 font-display text-4xl">Add a little detail</h2><div className="divide-y divide-line">{item.extras.map((extra) => { const quantity = extraQuantities[extra.key] ?? 0; return <div key={extra.key} className="grid grid-cols-[minmax(0,1fr)_108px] items-center gap-4 py-3"><label htmlFor={`extra-${extra.key}`} className="text-sm">{extra.name}{extra.componentName && <span className="block text-xs text-ink/55">For {extra.componentName}</span>}<span className="mt-1 block text-xs text-ink/55">R{extra.unitPrice} {methodLabel(extra)}</span></label><input id={`extra-${extra.key}`} type="number" inputMode="numeric" min={0} max={10} step={1} value={quantity || ""} placeholder="0" aria-label={`${extra.name} quantity`} onChange={(event) => { const value = Number(event.target.value); setExtraQuantities((current) => ({ ...current, [extra.key]: event.target.value === "" || value === 0 ? 0 : value })); setTimes([]); setTime(""); setAvailabilityLoading(Boolean(date && item.durationMinutes)); setAvailabilityMessage("Checking available times…"); }} className={input}/></div>; })}</div><p className="mt-3 text-xs text-ink/55">Enter the number of nails or designs. Maximum 10 per extra.</p></section> : null}
-        <section className="border-b border-line pb-8"><p className="mb-2 text-xs font-semibold text-gold">Choose your preference</p><h2 className="mb-5 font-display text-4xl">Date and available time</h2><label className="flex max-w-sm flex-col gap-2 text-sm font-medium">Appointment date<input type="date" required min={todayInSalon()} value={date} onChange={(event) => { const value = event.target.value; setDate(value); setTime(""); setTimes([]); setAvailabilityLoading(Boolean(value && item?.durationMinutes)); setAvailabilityMessage(value && item?.durationMinutes ? "Checking available times…" : "Choose a date to see available times."); }} className={input}/></label><fieldset className="mt-5" aria-busy={availabilityLoading}><legend className="mb-3 text-sm font-medium">Available times</legend>{availabilityLoading ? <p aria-live="polite" className="text-sm text-ink/60">Checking available times…</p> : times.length ? <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">{times.map((slot) => <label key={slot} className={cn("flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-gold focus-within:ring-offset-2", time === slot ? "border-olive bg-olive text-white" : "border-taupe bg-white hover:border-gold hover:bg-sand/60")}><input type="radio" name="available-time" value={slot} required checked={time === slot} onChange={() => setTime(slot)} className="sr-only"/><span>{slot}</span></label>)}</div> : <p aria-live="polite" className="text-sm text-ink/65">{availabilityMessage}</p>}</fieldset></section>
-        <section className="pb-4"><p className="mb-2 text-xs font-semibold text-gold">Your details</p><h2 className="mb-5 font-display text-4xl">Who should we contact?</h2><div className="grid gap-5 sm:grid-cols-2"><label className="flex flex-col gap-1.5 text-sm font-medium">Full name<input name="name" autoComplete="name" minLength={2} maxLength={120} required className={input}/></label><label className="flex flex-col gap-1.5 text-sm font-medium">Email address<input name="email" type="email" autoComplete="email" maxLength={254} required className={input}/></label><label className="flex flex-col gap-1.5 text-sm font-medium">Phone number <span className="font-normal text-ink/55">(optional)</span><input name="phone" type="tel" autoComplete="tel" maxLength={30} placeholder="e.g. 081 234 5678" className={input}/></label><label className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">Notes for the studio <span className="font-normal text-ink/55">(optional)</span><textarea name="description" maxLength={5000} rows={5} placeholder="Share your preferred style, colours or any special requests." className="w-full rounded-xl border border-taupe bg-white px-3.5 py-3"/></label></div></section>
-      </div>
-      <aside className="border border-line bg-sand/70 p-6 md:p-7 lg:sticky lg:top-24"><h2 className="font-display text-4xl">Request summary</h2><div className="mt-4 flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Selection</span><b className="text-right">{item?.name ?? "Choose a service"}</b></div><div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Base price</span><b>{item?.priceConfirmed && item.price != null ? `R${item.price}` : "To be confirmed"}</b></div>{(item?.extras ?? []).filter((extra) => (extraQuantities[extra.key] ?? 0) > 0).map((extra) => <div key={extra.key} className="flex justify-between gap-3 border-b border-line py-2 text-xs"><span>{extra.name} × {extraQuantities[extra.key]}</span><b>R{extra.unitPrice * extraQuantities[extra.key]}</b></div>)}<div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>{item?.priceConfirmed ? "Estimated total" : "Price status"}</span><b>{typeof total === "number" ? `R${total}` : "Needs confirmation"}</b></div><div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Requested time</span><b className="text-right">{date && time ? date + " · " + time : "Choose a date and time"}</b></div><button type="submit" disabled={busy || !item || !date || !time || !item.durationMinutes} className={cn(buttonStyles(), "mt-5 w-full disabled:opacity-50")}>{busy ? "Sending request…" : "Send booking request"}</button>{item && !item.durationMinutes && <p className="mt-3 text-xs leading-5 text-rose">The studio needs to set an appointment length before this option can be booked online.</p>}<p className="mt-4 text-xs leading-relaxed text-ink/65">The studio reviews each request. You’ll receive an email when it has been approved or declined.</p><div className="mt-4 border-t border-line pt-4 text-xs leading-5 text-ink/70"><a href={studioContact.phoneHref} className="font-semibold text-olive underline">Call {studioContact.phone}</a></div></aside>
-    </form>
-  </>;
+  useEffect(() => {
+    if (!date || !lines.length || itemsForQuote.length !== lines.length || !allDurationsSet) return;
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
+    const params = new URLSearchParams({ date, items: quoteQuery });
+    fetch("/api/availability?" + params.toString(), { signal: controller.signal }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Availability could not be loaded.");
+      const available = data.times ?? [];
+      setTimes(available);
+      setAvailabilityMessage(available.length ? "Choose one of the available times." : "No available appointment times on this date. Please select another date.");
+      if (!available.length) toast.info("No available times on this date.");
+    }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        if (timedOut) { setAvailabilityMessage("Availability took too long to load. Please choose the date again."); setAvailabilityLoading(false); }
+        return;
+      }
+      setTimes([]); setAvailabilityMessage(error instanceof Error ? error.message : "Availability could not be loaded.");
+      if (error instanceof Error) toast.warning(error.message);
+    }).finally(() => { window.clearTimeout(timeout); if (!controller.signal.aborted) setAvailabilityLoading(false); });
+    return () => { window.clearTimeout(timeout); controller.abort(); };
+  }, [date, lines.length, itemsForQuote.length, quoteQuery, allDurationsSet]);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !cart.length || !date || !time || !times.includes(time) || !allDurationsSet) {
+      setValidationError("Choose services, an available date, and one of the available times.");
+      toast.warning("Complete your service, date, and time selection.");
+      return;
+    }
+    const formElement = event.currentTarget;
+    if (!formElement.reportValidity()) { setValidationError("Check the required information and try again."); toast.warning("Enter your name and contact number."); return; }
+    setBusy(true); setSuccess(null); setValidationError("");
+    const form = new FormData(formElement);
+    if (!idempotencyKey.current) idempotencyKey.current = crypto.randomUUID();
+    const body = {
+      items: itemsForQuote,
+      name: form.get("name"),
+      phone: form.get("phone"),
+      email: form.get("email"),
+      description: form.get("description"),
+      date,
+      time,
+    };
+    try {
+      const response = await fetch("/api/bookings", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": idempotencyKey.current }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Booking could not be submitted.");
+      setSuccess({ reference: result.reference, status: result.status, totalPrice: result.totalPrice, priceNeedsConfirmation: result.priceNeedsConfirmation, preferredDate: date, preferredTime: time, items: result.items ?? [], extras: result.extras ?? [] });
+      toast.success("Your booking request has been submitted successfully!");
+      saveCart([]); setDate(""); setTime(""); setTimes([]); setAvailabilityMessage("Choose a date to see available times."); setAvailabilityLoading(false);
+      formElement.reset(); idempotencyKey.current = crypto.randomUUID();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Booking could not be submitted.";
+      setValidationError(message); toast.error(message);
+    } finally { setBusy(false); }
+  }
+
+  if (success) return <section className="mx-auto my-8 max-w-3xl border border-olive/30 bg-white p-6 md:p-10" aria-live="polite">
+    <p className="text-sm font-semibold text-olive">Request received</p><h2 className="mt-2 font-display text-5xl">Your booking request has been submitted successfully!</h2>
+    <p className="mt-4 text-sm leading-6 text-ink/70">The studio will review the request and contact you regarding approval. Your appointment is not confirmed yet.</p>
+    <dl className="mt-6 divide-y divide-line border-y border-line text-sm">
+      <div className="flex justify-between gap-4 py-3"><dt>Reference</dt><dd className="font-semibold">{success.reference}</dd></div>
+      <div className="flex justify-between gap-4 py-3"><dt>Requested appointment</dt><dd>{success.preferredDate} at {success.preferredTime}</dd></div>
+      <div className="border-y border-line py-3"><dt className="mb-2">Selected services</dt><dd className="space-y-1">{success.items.map((item, index) => <p key={item.name + index} className="flex justify-between gap-4"><span>{item.name}</span><span>{item.priceConfirmed && typeof item.price === "number" ? `R${item.price}` : "Price to be confirmed"}</span></p>)}</dd></div>
+      {success.extras.length > 0 && <div className="border-b border-line py-3"><dt className="mb-2">Extras</dt><dd className="space-y-1">{success.extras.map((extra, index) => <p key={extra.name + index} className="flex justify-between gap-4"><span>{extra.name} × {extra.quantity}</span><span>R{extra.subtotal}</span></p>)}</dd></div>}
+      <div className="flex justify-between gap-4 py-3"><dt>Status</dt><dd>{success.status}</dd></div>
+      <div className="flex justify-between gap-4 py-3"><dt>Total</dt><dd>{success.priceNeedsConfirmation || success.totalPrice == null ? "Price to be confirmed with you" : `R${success.totalPrice}`}</dd></div>
+    </dl><Link href="/services" className={cn(buttonStyles(), "mt-6 inline-flex")}>Browse services</Link>
+  </section>;
+
+  if (!itemsLoaded) return <p className="py-10 text-sm text-ink/60">{serviceError || "Preparing your booking cart…"}</p>;
+
+  return <form onSubmit={submit} className="grid items-start gap-8 pb-16 pt-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="flex min-w-0 flex-col gap-8">
+      <section className="border-b border-line pb-8">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="mb-2 text-xs font-semibold text-olive">Your selection</p><h2 className="font-display text-4xl">Booking cart</h2></div><Link href="/services#services" className="text-sm font-semibold text-olive underline">Add another service</Link></div>
+        {!lines.length ? <p className="border border-line bg-white p-6 text-sm text-ink/65">Your cart is empty. Choose a service to begin.</p> : <div className="divide-y divide-line border-y border-line">
+          {lines.map(({ entry, item }) => <article key={lineKey(entry)} className="grid gap-5 py-5 sm:grid-cols-[150px_minmax(0,1fr)]">
+            {item ? <BookingImage item={item}/> : <div className="grid aspect-[4/3] place-items-center bg-sand text-xs text-ink/60">Unavailable item</div>}
+            <div className="min-w-0"><div className="flex items-start justify-between gap-3"><div><h3 className="font-display text-3xl">{item?.name ?? "This service is no longer available"}</h3><p className="mt-1 text-xs text-ink/55">{entry.kind === "package" ? "Combination package" : item?.category}</p></div><button type="button" onClick={() => { updateCart(cart.filter((line) => lineKey(line) !== lineKey(entry))); toast.info("Item removed from your booking."); }} className="text-xs text-ink/65 underline">Remove</button></div>
+              {item?.description && <p className="mt-2 text-sm leading-6 text-ink/65">{item.description}</p>}{item?.components?.length ? <p className="mt-2 text-xs text-ink/60">Includes {item.components.map((component) => component.name).join(" + ")}</p> : null}
+              <p className="mt-3 text-sm font-semibold">{item?.priceConfirmed && item.price != null ? `R${item.price}` : "Price to be confirmed"}</p>
+              {item && !item.durationMinutes && <p className="mt-1 text-xs text-rose">Booking unavailable until the studio sets this service’s appointment length.</p>}
+              {item?.extras?.length ? <div className="mt-4 border-t border-line pt-3"><h4 className="text-sm font-semibold">Optional extras</h4><div className="mt-2 divide-y divide-line">{item.extras.map((extra) => {
+                const quantity = entry.extras[extra.key] || 0;
+                return <div key={extra.key} className="grid grid-cols-[minmax(0,1fr)_86px_auto] items-center gap-3 py-2"><label htmlFor={`${lineKey(entry)}-${extra.key}`} className="text-xs">{extra.name}{extra.componentName && <span className="block text-[11px] text-ink/50">For {extra.componentName}</span>}<span className="mt-1 block text-[11px] text-ink/55">R{extra.unitPrice} {methodLabel(extra)}</span></label><input id={`${lineKey(entry)}-${extra.key}`} type="number" inputMode="numeric" min={0} max={10} step={1} value={quantity || ""} placeholder="0" aria-label={`${extra.name} quantity`} onChange={(event) => updateExtra(entry, extra.key, event.target.value, extra)} className="h-10 w-full rounded-lg border border-taupe bg-white px-2 text-sm"/><span className="text-xs font-semibold">{quantity ? `R${quantity * extra.unitPrice}` : "—"}</span></div>;
+              })}</div><p className="mt-2 text-[11px] text-ink/55">For Nail Art and Chrome, enter nails. For 3D and Marble, enter designs.</p></div> : null}
+            </div>
+          </article>)}
+        </div>}
+      </section>
+
+      <section className="border-b border-line pb-8"><p className="mb-2 text-xs font-semibold text-olive">Choose your appointment</p><h2 className="mb-5 font-display text-4xl">Date and time</h2>
+        <label className="flex max-w-sm flex-col gap-2 text-sm font-medium">Appointment date<input type="date" required min={todayInSalon()} value={date} onChange={(event) => { const nextDate = event.target.value; setDate(nextDate); setTime(""); setTimes([]); setAvailabilityLoading(Boolean(nextDate && allDurationsSet && itemsForQuote.length === lines.length)); setAvailabilityMessage(nextDate ? "Checking available times…" : "Choose a date to see available times."); setValidationError(""); }} className={input}/></label>
+        <fieldset className="mt-5" aria-busy={availabilityLoading}><legend className="mb-3 text-sm font-medium">Available times</legend>{availabilityLoading ? <p aria-live="polite" className="text-sm text-ink/60">Checking available times…</p> : times.length ? <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">{times.map((slot) => <label key={slot} className={cn("flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-gold focus-within:ring-offset-2", time === slot ? "border-olive bg-olive text-white" : "border-taupe bg-white hover:border-gold hover:bg-sand/60")}><input type="radio" name="available-time" value={slot} required checked={time === slot} onChange={() => { setTime(slot); setValidationError(""); }} className="sr-only"/><span>{slot}</span></label>)}</div> : <p aria-live="polite" className="text-sm text-ink/65">{date ? availabilityMessage : "Choose a date to see available times."}</p>}</fieldset>
+        <p className="mt-3 text-xs text-ink/50">Appointment times use {businessProfile.timezone}.</p>
+      </section>
+
+      <section className="pb-4"><p className="mb-2 text-xs font-semibold text-olive">Your details</p><h2 className="mb-5 font-display text-4xl">Who should we contact?</h2><div className="grid gap-5 sm:grid-cols-2">
+        <label className="flex flex-col gap-1.5 text-sm font-medium">Full name<input name="name" autoComplete="name" minLength={2} maxLength={120} required className={input}/></label>
+        <label className="flex flex-col gap-1.5 text-sm font-medium">Contact number<input name="phone" type="tel" autoComplete="tel" minLength={7} maxLength={30} pattern="[+0-9 ()-]{7,30}" placeholder="e.g. 081 234 5678" required className={input}/></label>
+        <label className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">Additional notes <span className="font-normal text-ink/55">(optional)</span><textarea name="description" maxLength={5000} rows={4} placeholder="Share a style preference or special request." className="w-full rounded-xl border border-taupe bg-white px-3.5 py-3"/></label>
+      </div>{validationError && <p role="alert" className="mt-4 border-l-2 border-rose pl-3 text-sm text-rose">{validationError}</p>}</section>
+    </div>
+
+    <aside className="border border-line bg-sand/70 p-6 md:p-7 lg:sticky lg:top-24"><h2 className="font-display text-4xl">Request summary</h2>
+      {lines.map(({ entry, item }) => <div key={lineKey(entry)} className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>{item?.name ?? "Unavailable item"}</span><b className="text-right">{item?.priceConfirmed && item.price != null ? `R${item.price}` : "To be confirmed"}</b></div>)}
+      {lines.flatMap(({ entry, item }) => (item?.extras ?? []).filter((extra) => entry.extras[extra.key] > 0).map((extra) => <div key={`${lineKey(entry)}:${extra.key}`} className="flex justify-between gap-3 border-b border-line py-2 text-xs"><span>{extra.name} · {entry.extras[extra.key]} {methodLabel(extra).replace("per ", "")}</span><b>R{extra.unitPrice * entry.extras[extra.key]}</b></div>))}
+      <div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Booking total</span><b>{total == null ? "Price to be confirmed" : `R${total}`}</b></div>
+      <div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Requested time</span><b className="text-right">{date && time ? `${date} · ${time}` : "Choose a date and time"}</b></div>
+      <button type="submit" disabled={busy || !cart.length || !date || !time || !times.includes(time) || !allDurationsSet} className={cn(buttonStyles(), "mt-5 w-full disabled:opacity-50")}>{busy ? "Sending request…" : "Submit booking request"}</button>
+      {!allDurationsSet && lines.length > 0 && <p className="mt-3 text-xs leading-5 text-rose">The appointment length must be set before available times can be offered.</p>}
+      <p className="mt-4 text-xs leading-relaxed text-ink/65">The studio will review your request and contact you about approval. Your appointment is not confirmed until approved.</p>
+    </aside>
+  </form>;
 }

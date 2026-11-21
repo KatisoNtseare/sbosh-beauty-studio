@@ -15,7 +15,7 @@ export default function BookingCta() {
           Make time for <span className="italic text-[#dec7a7]">feeling good.</span>
         </h2>
         <p className="max-w-md text-sm leading-6 text-cream/75 md:text-base">
-          Choose a service and preferred time. The studio will review your request and email you after making a decision.
+          Choose your services and an available appointment time. The studio will review your request and contact you about approval.
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-5">
           <Link href="/services" className={cn(buttonStyles(), "bg-cream text-gold-dark hover:bg-white")}>Choose a service</Link>

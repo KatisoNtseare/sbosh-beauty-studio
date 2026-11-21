@@ -22,7 +22,7 @@ type PricedService = {
 
 export function buildServiceQuote(service: PricedService, selections: ExtraSelection[]) {
   if (service.active === false) throw new Error("That service is no longer available.");
-  const extras = calculateExtraLines(service.extras ?? [], selections);
+  const extras = calculateExtraLines(service.extras ?? [], selections).map((line) => ({ ...line, componentId: String(service._id), componentName: service.name }));
   const basePrice = service.priceConfirmed && typeof service.price === "number" ? service.price : null;
   const totalPrice = calculateCatalogueTotal(basePrice, extras.map((line) => line.subtotal));
   const durationMinutes = service.durationConfirmed === true && typeof service.durationMinutes === "number"
@@ -107,7 +107,9 @@ export async function buildPackageQuote(servicePackage: {
   };
 }
 
-export async function loadCatalogueQuote(input: { serviceId?: string; packageId?: string; extras?: ExtraSelection[] }) {
+type CatalogueRequest = { serviceId?: string; packageId?: string; extras?: ExtraSelection[] };
+
+async function loadSingleCatalogueQuote(input: CatalogueRequest) {
   const serviceId = input.serviceId?.trim() ?? "";
   const packageId = input.packageId?.trim() ?? "";
   if (Boolean(serviceId) === Boolean(packageId)) throw new Error("Choose one service or package.");
@@ -123,4 +125,66 @@ export async function loadCatalogueQuote(input: { serviceId?: string; packageId?
   const components = await Service.find({ _id: { $in: item.serviceIds }, active: true }).lean();
   if (components.length !== item.serviceIds.length) throw new Error("This package has services that are no longer available.");
   return buildPackageQuote(item as unknown as Parameters<typeof buildPackageQuote>[0], components as unknown as PricedService[], selections);
+}
+
+export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unknown[] }) {
+  if (!input.items) {
+    const quote = await loadSingleCatalogueQuote(input);
+    return {
+      ...quote,
+      items: [{
+        id: quote.service.id,
+        kind: quote.service.isPackage ? "package" : "service",
+        name: quote.service.name,
+        price: quote.service.price,
+        priceConfirmed: quote.service.priceConfirmed,
+        durationMinutes: quote.durationMinutes,
+      }],
+    };
+  }
+  if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 8) throw new Error("Choose between one and eight services or packages.");
+  const requests: CatalogueRequest[] = input.items.map((raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("A cart item is invalid.");
+    const item = raw as Record<string, unknown>;
+    const serviceId = typeof item.serviceId === "string" ? item.serviceId : "";
+    const packageId = typeof item.packageId === "string" ? item.packageId : "";
+    const extras = item.extras === undefined ? [] : item.extras;
+    if (Boolean(serviceId) === Boolean(packageId) || !Array.isArray(extras) || extras.length > 20) throw new Error("A cart item is invalid.");
+    return { ...(serviceId ? { serviceId } : { packageId }), extras: extras as ExtraSelection[] };
+  });
+  const quotes = await Promise.all(requests.map(loadSingleCatalogueQuote));
+  const totalPrice = quotes.some((quote) => quote.totalPrice === null) ? null : quotes.reduce((sum, quote) => sum + (quote.totalPrice ?? 0), 0);
+  const durationMinutes = quotes.every((quote) => Number.isInteger(quote.durationMinutes) && Number(quote.durationMinutes) > 0)
+    ? quotes.reduce((sum, quote) => sum + Number(quote.durationMinutes), 0)
+    : undefined;
+  const names = quotes.map((quote) => quote.service.name);
+  const items = quotes.map((quote, index) => ({
+    id: quote.service.id,
+    kind: requests[index].packageId ? "package" : "service",
+    name: quote.service.name,
+    price: quote.service.price,
+    priceConfirmed: quote.service.priceConfirmed,
+    durationMinutes: quote.durationMinutes,
+  }));
+  if (quotes.length === 1) return { ...quotes[0], items };
+  return {
+    service: {
+      id: quotes[0].service.id,
+      name: names.join(" + "),
+      description: "",
+      fullDescription: names.join(" + "),
+      image: quotes[0].service.image,
+      price: totalPrice ?? undefined,
+      priceConfirmed: totalPrice !== null,
+      category: "Booking selection",
+      durationMinutes,
+      components: quotes.flatMap((quote) => quote.service.components.length ? quote.service.components : [{ id: quote.service.id, name: quote.service.name, price: quote.service.price, durationMinutes: quote.durationMinutes }]),
+      isPackage: false,
+    },
+    extras: quotes.flatMap((quote) => quote.extras),
+    totalPrice,
+    priceNeedsConfirmation: totalPrice === null,
+    durationMinutes,
+    items,
+  };
 }

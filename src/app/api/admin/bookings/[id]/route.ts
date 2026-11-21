@@ -6,19 +6,12 @@ import Booking from "@/models/Booking";
 import Availability from "@/models/Availability";
 import { adminIdentity } from "@/lib/admin-auth";
 import { canTransitionBooking } from "@/lib/domain";
-import { addNotification, sendNotification } from "@/lib/email";
+import { sendNotification } from "@/lib/email";
 import { ensureReservationDay, releaseInterval, reserveInterval, transactionUnsupported } from "@/lib/reservations";
 
 type Ctx = { params: Promise<{ id: string }> };
 class StateConflict extends Error {}
 type TransactionResult = "COMMITTED" | "CONFLICT" | "UNSUPPORTED";
-
-async function customerNotice(id: string, type: "CUSTOMER_APPROVED" | "CUSTOMER_REJECTED") {
-  try {
-    const notificationId = await addNotification(id, type, (await Booking.findById(id).select("customer.email").lean())?.customer.email ?? "");
-    return (await sendNotification(id, notificationId)).sent ? "SENT" : "FAILED";
-  } catch { return "FAILED"; }
-}
 
 async function runTransaction(work: (session: mongoose.ClientSession) => Promise<void>): Promise<TransactionResult> {
   const session = await mongoose.startSession();
@@ -46,6 +39,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
       const notificationId = String(body.notificationId ?? "");
       if (!mongoose.isValidObjectId(notificationId)) return Response.json({ error: "Invalid email notification." }, { status: 400 });
       const notification = booking.notifications.find((item: (typeof booking.notifications)[number]) => String(item._id) === notificationId);
+      if (notification?.type !== "ADMIN_NEW_BOOKING") return Response.json({ error: "Customer notifications are handled directly by the studio." }, { status: 409 });
       const staleSending = notification?.status === "SENDING" && notification.attemptedAt && notification.attemptedAt.getTime() < Date.now() - 5 * 60_000;
       if (!notification || !(notification.status === "FAILED" || notification.status === "PENDING" || staleSending)) return Response.json({ error: "This email is already being delivered or is not eligible for retry." }, { status: 409 });
       const result = await sendNotification(id, notificationId);
@@ -57,8 +51,8 @@ export async function PATCH(request: Request, { params }: Ctx) {
       const reason = String(body.reason ?? "").trim().slice(0, 500);
       const rejected = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "REJECTED", rejectionReason: reason, decidedBy: admin.id }, $push: { history: { status: "REJECTED", at: now, by: admin.name, note: reason } } });
       if (!rejected.modifiedCount) return Response.json({ error: "Booking changed; refresh and try again." }, { status: 409 });
-      const emailStatus = await customerNotice(id, "CUSTOMER_REJECTED");
-      return Response.json({ booking: await Booking.findById(id).lean(), emailStatus, warning: emailStatus === "FAILED" ? "The request was rejected, but the customer email could not be delivered. Please retry the notification." : undefined });
+      await releaseInterval(booking.preferredDate, booking._id);
+      return Response.json({ booking: await Booking.findById(id).lean() });
     }
     if (body.action === "complete") {
       if (!canTransitionBooking(booking.status, "complete")) return Response.json({ error: "Only approved appointments can be completed." }, { status: 409 });
@@ -87,6 +81,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
         const cancelled = await Booking.updateOne({ _id: booking._id, status: previousStatus }, { $set: { status: "CANCELLED", cancelledAt: now, decidedBy: admin.id }, $push: { history: { status: "CANCELLED", at: now, by: admin.name } } });
         if (!cancelled.modifiedCount) return Response.json({ error: "Booking changed; refresh and try again." }, { status: 409 });
         if (previousStatus === "APPROVED" && booking.confirmedDate) await releaseInterval(booking.confirmedDate, booking._id);
+        if (previousStatus === "PENDING") await releaseInterval(booking.preferredDate, booking._id);
       } else if (result === "CONFLICT") return Response.json({ error: "Booking changed; refresh and try again." }, { status: 409 });
       return Response.json({ booking: await Booking.findById(id).lean() });
     }
@@ -129,21 +124,24 @@ export async function PATCH(request: Request, { params }: Ctx) {
     }
 
     const endTime = `${String(Math.floor(end / 60)).padStart(2,"0")}:${String(end % 60).padStart(2,"0")}`;
-    if (!validDate(date) || start < 0 || end >= 1440 || !(await slotsFor(date, duration)).includes(startTime)) return Response.json({ error: "That time is outside configured availability." }, { status: 409 });
+    if (!validDate(date) || start < 0 || end >= 1440 || !(await slotsFor(date, duration, String(booking._id))).includes(startTime)) return Response.json({ error: "That time is outside configured availability." }, { status: 409 });
     const settings = await Availability.findOne().lean(); const buffer = Number(settings?.bufferMinutes || 0);
     await ensureReservationDay(date);
     const result = await runTransaction(async (session) => {
-      if (!(await reserveInterval(date, booking._id, start, end, buffer, undefined, session))) throw new StateConflict();
+      if (!(await reserveInterval(date, booking._id, start, end, buffer, booking._id, session))) throw new StateConflict();
       const saved = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "APPROVED", confirmedDate: date, confirmedStart: startTime, confirmedEnd: endTime, approvedAt: now, decidedBy: admin.id, ...priceUpdate }, $push: { history: { status: "APPROVED", at: now, by: admin.name, note: priceHistoryNote } } }, { session });
       if (!saved.modifiedCount) throw new StateConflict();
+      const requestedStart = minute(booking.preferredTime);
+      if (date !== booking.preferredDate || start !== requestedStart) await releaseInterval(booking.preferredDate, booking._id, requestedStart, requestedStart + duration, session);
     });
     if (result === "CONFLICT") return Response.json({ error: "This time was just taken or the booking changed. Refresh and try again." }, { status: 409 });
     if (result === "UNSUPPORTED") {
-      if (!(await reserveInterval(date, booking._id, start, end, buffer))) return Response.json({ error: "This time was just taken. Choose another." }, { status: 409 });
+      if (!(await reserveInterval(date, booking._id, start, end, buffer, booking._id))) return Response.json({ error: "This time was just taken. Choose another." }, { status: 409 });
       const saved = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "APPROVED", confirmedDate: date, confirmedStart: startTime, confirmedEnd: endTime, approvedAt: now, decidedBy: admin.id, ...priceUpdate }, $push: { history: { status: "APPROVED", at: now, by: admin.name, note: priceHistoryNote } } });
       if (!saved.modifiedCount) { await releaseInterval(date, booking._id, start, end); return Response.json({ error: "Booking changed; refresh and try again." }, { status: 409 }); }
+      const requestedStart = minute(booking.preferredTime);
+      if (date !== booking.preferredDate || start !== requestedStart) await releaseInterval(booking.preferredDate, booking._id, requestedStart, requestedStart + duration);
     }
-    const emailStatus = await customerNotice(id, "CUSTOMER_APPROVED");
-    return Response.json({ booking: await Booking.findById(id).lean(), emailStatus, warning: emailStatus === "FAILED" ? "Appointment approved, but the customer email could not be delivered. Please retry the notification." : undefined });
+    return Response.json({ booking: await Booking.findById(id).lean() });
   } catch { return Response.json({ error: "Booking could not be updated." }, { status: 503 }); }
 }

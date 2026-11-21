@@ -3,6 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
+import { addCartEntry } from "@/lib/cart";
 
 type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN" };
 type CatalogueItem = { _id: string; name: string; description: string; image: string; category: string; price?: number; priceConfirmed: boolean; durationMinutes?: number; isPackage?: boolean; serviceIds?: string[]; components?: { name: string }[]; extras?: Extra[] };
@@ -17,7 +20,7 @@ function ServiceImage({ item }: { item: CatalogueItem }) {
   </div>;
 }
 
-function ItemCard({ item }: { item: CatalogueItem }) {
+function ItemCard({ item, onBook }: { item: CatalogueItem; onBook: (item: CatalogueItem) => void }) {
   const bookable = Number.isInteger(item.durationMinutes) && Number(item.durationMinutes) > 0;
   return <article className="group overflow-hidden border border-line bg-cream transition-colors hover:border-olive/60">
     <ServiceImage item={item}/>
@@ -26,14 +29,15 @@ function ItemCard({ item }: { item: CatalogueItem }) {
       <p className="mt-3 min-h-10 text-sm leading-6 text-ink/68">{item.description || "A considered treatment from the studio."}</p>
       {item.components?.length ? <p className="mt-3 border-l border-rose pl-3 text-xs leading-5 text-ink/65">Includes {item.components.map((component) => component.name).join(" + ")}</p> : null}
       <div className="mt-4 flex min-h-9 items-center justify-between gap-3 border-t border-line pt-3 text-xs text-ink/60">
-        <span>{bookable ? `${item.durationMinutes} minutes` : "Appointment time to be confirmed"}</span>
-        {bookable ? <Link href={`/${item.isPackage ? "cart?package" : "cart?service"}=${item._id}`} className="font-semibold text-olive underline decoration-olive/40 underline-offset-4">Book now</Link> : <span className="text-right">Call the studio to request</span>}
+        <span>{bookable ? `${item.durationMinutes} minutes` : "Booking length not set"}</span>
+        <button type="button" onClick={() => onBook(item)} className="font-semibold text-olive underline decoration-olive/40 underline-offset-4">Book</button>
       </div>
     </div>
   </article>;
 }
 
 export default function ServicesSection() {
+  const router = useRouter();
   const [services, setServices] = useState<CatalogueItem[]>([]);
   const [packages, setPackages] = useState<CatalogueItem[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -52,6 +56,13 @@ export default function ServicesSection() {
     { title: "Combination Packages", items: packages },
   ];
 
+  function book(item: CatalogueItem) {
+    const result = addCartEntry({ id: item._id, kind: item.isPackage ? "package" : "service" });
+    if (result.added) toast.success(`${item.name} added to your booking.`);
+    else toast.info(`${item.name} is already in your booking.`);
+    router.push("/cart");
+  }
+
   return <section id="services" className="scroll-mt-24 border-y border-line bg-sand/55 px-6 py-16 md:px-16 md:py-24">
     <div className="mx-auto max-w-7xl">
       <div className="mb-9 grid gap-5 md:grid-cols-[1fr_300px] md:items-end md:gap-10"><div><p className="mb-4 flex items-center gap-3 text-[11px] font-semibold text-olive"><span className="h-px w-8 bg-rose"/>The service menu</p><h2 className="font-display text-5xl font-medium leading-[0.95] tracking-tight md:text-7xl">A little care, <span className="italic text-olive">your way.</span></h2></div><p className="max-w-sm text-sm leading-6 text-ink/70">Choose a finish, a small refresh or a paired set. Every request is reviewed by the studio before it is confirmed.</p></div>
@@ -59,10 +70,10 @@ export default function ServicesSection() {
         {sections.map((section) => <a key={section.title} href={`#${section.title.toLowerCase().replaceAll(" ", "-")}`} className="shrink-0 rounded-full border border-line bg-cream px-4 py-2 text-xs text-ink/75 transition-colors hover:border-olive hover:text-olive">{section.title}</a>)}
         {extras.length > 0 && <a href="#nail-art-extras" className="shrink-0 rounded-full border border-line bg-cream px-4 py-2 text-xs text-ink/75 transition-colors hover:border-olive hover:text-olive">Nail Art & Extras</a>}
       </nav>
-      {error ? <p role="alert" className="border-y border-rose/50 py-6 text-sm">{error} Please call the studio to book.</p> : !loaded ? <p aria-live="polite" className="border-y border-line py-6 text-sm text-ink/65">Loading the service menu…</p> : <>
+      {error ? <p role="alert" className="border-y border-rose/50 py-6 text-sm">{error}</p> : !loaded ? <p aria-live="polite" className="border-y border-line py-6 text-sm text-ink/65">Loading the service menu…</p> : <>
         {sections.map((section) => <section id={section.title.toLowerCase().replaceAll(" ", "-")} key={section.title} className="scroll-mt-36 border-t border-line py-10 md:py-14">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3"><h3 className="font-display text-4xl md:text-5xl">{section.title}</h3><span className="text-xs text-ink/55">{section.items.length} {section.items.length === 1 ? "service" : "services"}</span></div>
-          {section.items.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{section.items.map((item) => <ItemCard key={item._id} item={item}/>)}</div> : <p className="border-l border-rose py-2 pl-4 text-sm text-ink/60">The studio is updating this part of the menu. Please check back soon.</p>}
+          {section.items.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{section.items.map((item) => <ItemCard key={item._id} item={item} onBook={book}/>)}</div> : <p className="border-l border-rose py-2 pl-4 text-sm text-ink/60">The studio is updating this part of the menu. Please check back soon.</p>}
         </section>)}
         <section id="nail-art-extras" className="scroll-mt-36 border-y border-line bg-cream px-5 py-8 md:px-8"><div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_360px] md:items-start"><div><p className="text-[11px] font-semibold text-olive">Add a finishing detail</p><h3 className="mt-2 font-display text-4xl md:text-5xl">Nail art & extras</h3><p className="mt-3 max-w-xl text-sm leading-6 text-ink/65">Optional details can be selected with compatible services when you request an appointment.</p></div>{extras.length ? <dl className="divide-y divide-line">{extras.map((extra) => <div key={extra.key} className="flex items-center justify-between gap-4 py-3 text-sm"><dt>{extra.name}<span className="mt-1 block text-xs text-ink/55">{extra.method === "PER_NAIL" ? "Charged per nail" : "Charged per design"}</span></dt><dd className="shrink-0 font-semibold text-olive">R{extra.unitPrice} {extra.method === "PER_NAIL" ? "/ nail" : "/ design"}</dd></div>)}</dl> : <p className="text-sm text-ink/60">Extras are being configured by the studio.</p>}</div></section>
       </>}

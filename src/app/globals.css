@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "react-toastify/dist/ReactToastify.css";
 
 @theme inline {
   --color-cream: #f7f4ed;
@@ -30,6 +31,18 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+
+.Toastify__toast {
+  border: 1px solid var(--color-line);
+  border-radius: 0.8rem;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  box-shadow: 0 12px 36px rgb(46 44 39 / 0.14);
+}
+
+.Toastify__toast--success { border-color: var(--color-olive); }
+.Toastify__toast--error { border-color: var(--color-rose); }
 
 a {
   color: inherit;

@@ -47,11 +47,12 @@ describe("service classification and lifecycle", () => {
 });
 
 describe("booking validation and transitions", () => {
-  it("requires a valid customer email and accepts an optional phone and notes", () => {
-    expect(validateCustomerFields({ name: "Amahle", email: "AMA@EXAMPLE.COM" })).toEqual({ name: "Amahle", email: "ama@example.com", description: "" });
-    expect(validateCustomerFields({ name: "A", email: "not-an-email" })).toBeNull();
-    expect(validateCustomerFields({ name: "Amahle", email: "ama@example.com", phone: "x".repeat(31) })).toBeNull();
-    expect(validateCustomerFields({ name: "Amahle", email: "ama@example.com", description: "x".repeat(5001) })).toBeNull();
+  it("requires a valid customer phone and accepts optional email and notes", () => {
+    expect(validateCustomerFields({ name: "Amahle", phone: "081 317 9144", email: "AMA@EXAMPLE.COM" })).toEqual({ name: "Amahle", phone: "081 317 9144", email: "ama@example.com", description: "" });
+    expect(validateCustomerFields({ name: "Amahle", phone: "0813179144" })).toEqual({ name: "Amahle", phone: "0813179144", description: "" });
+    expect(validateCustomerFields({ name: "A", phone: "0813179144" })).toBeNull();
+    expect(validateCustomerFields({ name: "Amahle", phone: "x".repeat(31) })).toBeNull();
+    expect(validateCustomerFields({ name: "Amahle", phone: "0813179144", description: "x".repeat(5001) })).toBeNull();
   });
   it("allows only valid status transitions", () => {
     expect(canTransitionBooking("PENDING", "approve")).toBe(true);

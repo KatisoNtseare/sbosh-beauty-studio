@@ -26,7 +26,7 @@ import { PATCH as updateBooking } from "@/app/api/admin/bookings/[id]/route";
 import { PATCH as updateService } from "@/app/api/admin/services/route";
 import { GET as getPublicServices } from "@/app/api/services/route";
 import { GET as getAdminBookings } from "@/app/api/admin/bookings/route";
-import { GET as getAdminAvailability } from "@/app/api/admin/availability/route";
+import { GET as getAdminAvailability, PUT as updateAvailability } from "@/app/api/admin/availability/route";
 import { GET as getAdminServices } from "@/app/api/admin/services/route";
 import { GET as getAdminPackages, POST as createPackage, PATCH as updatePackage, DELETE as deletePackage } from "@/app/api/admin/packages/route";
 import { GET as getCatalogue } from "@/app/api/services/route";
@@ -177,6 +177,32 @@ describe("MongoDB booking and reservation integration", () => {
     }
   });
 
+  it("persists recurring schedule edits and reflects them in public appointment availability", async () => {
+    sessionState.value = adminCookieValue(admin);
+    const original = await Availability.findById(availabilityId).lean();
+    if (!original) throw new Error("Availability fixture is missing.");
+    const updateWeekly = async (weekly: { weekday: number; enabled: boolean; periods: { open: string; close: string }[] }[]) => updateAvailability(new Request("http://localhost/api/admin/availability", {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ weekly, blockedDates: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0 }),
+    }));
+    const monday = new Date("2099-03-01T12:00:00Z");
+    while (monday.getUTCDay() !== 1) monday.setUTCDate(monday.getUTCDate() + 1);
+    const date = monday.toISOString().slice(0, 10);
+    const changed = original.weekly.map((day: { weekday: number; enabled: boolean; periods: { open: string; close: string }[] }) => day.weekday === 1 ? { ...day, enabled: true, periods: [{ open: "10:00", close: "15:00" }] } : day);
+    expect((await updateWeekly(changed)).status).toBe(200);
+    expect((await Availability.findById(availabilityId).lean())?.weekly.find((day: { weekday: number }) => day.weekday === 1)).toMatchObject({ enabled: true, periods: [{ open: "10:00", close: "15:00" }] });
+    const openSlots = await (await getAvailability(new Request(`http://localhost/api/availability?date=${date}&serviceId=${service.id}`))).json();
+    expect(openSlots.times[0]).toBe("10:00");
+    expect(openSlots.times).not.toContain("09:00");
+
+    const disabled = changed.map((day: { weekday: number; enabled: boolean; periods: { open: string; close: string }[] }) => day.weekday === 1 ? { ...day, enabled: false } : day);
+    expect((await updateWeekly(disabled)).status).toBe(200);
+    const closedSlots = await (await getAvailability(new Request(`http://localhost/api/availability?date=${date}&serviceId=${service.id}`))).json();
+    expect(closedSlots.times).toEqual([]);
+
+    await updateWeekly(original.weekly.map((day: { weekday: number; enabled: boolean; periods: { open: string; close: string }[] }) => ({ weekday: day.weekday, enabled: day.enabled, periods: day.periods })));
+  });
+
   it("replays an idempotent booking before rechecking later availability and rejects key reuse with different details", async () => {
     const date = nextDate();
     reservationDates.push(date);
@@ -201,10 +227,10 @@ describe("MongoDB booking and reservation integration", () => {
 
     const changed = await postBooking({ ...body, time: "11:00" }, key);
     expect(changed.response.status).toBe(409);
-    expect(await ReservationDay.findOne({ date })).toBeNull();
+    expect(await ReservationDay.countDocuments({ date, "reservations.0": { $exists: true } })).toBe(1);
   });
 
-  it("allows one database insert for simultaneous retries with the same key, while separate keys remain pending", async () => {
+  it("replays same-key retries and atomically rejects a second booking for the same slot", async () => {
     const date = nextDate();
     reservationDates.push(date);
     const body = bookingBody(date);
@@ -217,33 +243,19 @@ describe("MongoDB booking and reservation integration", () => {
     const single = await Booking.findOne({ idempotencyKey: key });
     expect(single?.notifications.filter((notice: { type: string }) => notice.type === "ADMIN_NEW_BOOKING")).toHaveLength(1);
 
-    const distinct = await Promise.all([
-      postBooking(body, `${testRunId}-distinct-a-${randomUUID()}`),
-      postBooking(body, `${testRunId}-distinct-b-${randomUUID()}`),
-    ]);
-    expect(distinct.every(({ response }) => response.status === 201)).toBe(true);
-    const references = distinct.map(({ result }) => result.reference as string);
-    expect(references.every((reference) => /^#SBS\d+$/.test(reference))).toBe(true);
-    expect(new Set(references).size).toBe(2);
-    const sequences = references.map((reference) => Number(reference.slice(4))).sort((a, b) => a - b);
-    expect(sequences[1]).toBe(sequences[0] + 1);
-    const pending = await Booking.find({ reference: { $in: distinct.map(({ result }) => result.reference) } });
-    expect(pending.every((booking) => booking.status === "PENDING")).toBe(true);
-    expect(await ReservationDay.findOne({ date })).toBeNull();
-
-    const secondAdmin = { id: new mongoose.Types.ObjectId().toString(), email: "second-admin@example.test", name: "Second Admin" };
-    const firstSession = adminCookieValue(admin);
-    const secondSession = adminCookieValue(secondAdmin);
-    sessionState.queue = [firstSession, secondSession, firstSession, secondSession];
-    let approvals: Response[];
-    try {
-      approvals = await Promise.all(pending.map((booking) => adminAction(booking.id, "approve", { date, time: "10:00" })));
-    } finally {
-      sessionState.queue = [];
-    }
-    expect(approvals.map((response) => response.status).sort()).toEqual([200, 409]);
-    expect(await Booking.countDocuments({ _id: { $in: pending.map(({ _id }) => _id) }, status: "APPROVED" })).toBe(1);
-    expect(await ReservationDay.countDocuments({ date, "reservations.0": { $exists: true } })).toBe(1);
+    const competingDate = nextDate();
+    reservationDates.push(competingDate);
+    const competingBody = bookingBody(competingDate);
+    const keys = [`${testRunId}-distinct-a-${randomUUID()}`, `${testRunId}-distinct-b-${randomUUID()}`];
+    const distinct = await Promise.all([postBooking(competingBody, keys[0]), postBooking(competingBody, keys[1])]);
+    expect(distinct.map(({ response }) => response.status).sort()).toEqual([201, 409]);
+    const pending = await Booking.find({ idempotencyKey: { $in: keys } });
+    expect(pending).toHaveLength(1);
+    expect(pending[0].status).toBe("PENDING");
+    expect(await ReservationDay.countDocuments({ date: competingDate, "reservations.0": { $exists: true } })).toBe(1);
+    expect((await adminAction(pending[0].id, "approve", { date: competingDate, time: "10:00" })).status).toBe(200);
+    expect(await Booking.countDocuments({ _id: pending[0]._id, status: "APPROVED" })).toBe(1);
+    expect(await ReservationDay.countDocuments({ date: competingDate, "reservations.0": { $exists: true } })).toBe(1);
   });
 
   it("keeps a failed new-booking email retryable and retries without another booking or notification", async () => {
@@ -316,19 +328,15 @@ describe("MongoDB booking and reservation integration", () => {
     const rejected = await createPending(nextDate());
     const rejection = await adminAction(rejected.id, "reject", { reason: "Please choose another time." });
     expect(rejection.status).toBe(200);
-    expect((await rejection.json()).emailStatus).toBe("SENT");
-    expect((await Booking.findById(rejected.id))?.notifications[0]).toMatchObject({ type: "CUSTOMER_REJECTED", status: "SENT" });
+    expect((await rejection.json()).emailStatus).toBeUndefined();
+    expect((await Booking.findById(rejected.id))?.notifications).toHaveLength(0);
     expect(await ReservationDay.findOne({ date: rejected.preferredDate })).toBeNull();
 
     const cancelled = await createPending(nextDate());
     const approval = await adminAction(cancelled.id, "approve", { date: cancelled.preferredDate, time: "10:00" });
     expect(approval.status).toBe(200);
-    expect((await approval.json()).emailStatus).toBe("SENT");
-    expect((await Booking.findById(cancelled.id))?.notifications[0]).toMatchObject({ type: "CUSTOMER_APPROVED", status: "SENT" });
-    expect(smtpMock.sendMail).toHaveBeenLastCalledWith(expect.objectContaining({
-      to: "customer@example.test",
-      text: expect.stringContaining(`Appointment: ${new Intl.DateTimeFormat("en-ZA", { dateStyle: "long", timeZone: "UTC" }).format(new Date(cancelled.preferredDate + "T12:00:00Z"))} at 10:00`),
-    }));
+    expect((await approval.json()).emailStatus).toBeUndefined();
+    expect((await Booking.findById(cancelled.id))?.notifications).toHaveLength(0);
     expect(await ReservationDay.countDocuments({ date: cancelled.preferredDate, "reservations.0": { $exists: true } })).toBe(1);
     expect((await adminAction(cancelled.id, "cancel")).status).toBe(200);
     expect(await ReservationDay.countDocuments({ date: cancelled.preferredDate, "reservations.0": { $exists: true } })).toBe(0);
@@ -376,6 +384,23 @@ describe("MongoDB booking and reservation integration", () => {
     expect(updatedCatalogue.packages.find((entry: { _id: string }) => entry._id === packageFixture.id).price).toBe(315);
     expect((await Booking.findById(booking?._id))?.totalPrice).toBe(330);
     await Service.updateOne({ _id: pedicure._id }, { $set: { price: 110 } });
+  });
+
+  it("prices multiple cart items together and snapshots each selected service", async () => {
+    const result = await postBooking({
+      ...bookingBody(nextDate()),
+      serviceId: undefined,
+      items: [
+        { serviceId: service.id, extras: [{ key: "nail-art", quantity: 2 }] },
+        { serviceId: pedicure.id, extras: [] },
+      ],
+      totalPrice: 1,
+    }, `${testRunId}-cart-${randomUUID()}`);
+    expect(result.response.status).toBe(201);
+    const booking = await Booking.findOne({ reference: result.result.reference });
+    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, service: { durationMinutes: 90 } });
+    expect(booking?.items).toMatchObject([{ name: service.name, price: 190 }, { name: pedicure.name, price: 110 }]);
+    expect(booking?.extras).toMatchObject([{ name: "Nail Art", quantity: 2, subtotal: 30, componentId: service.id }]);
   });
 
   it("flags an unconfirmed service price and requires customer confirmation before approval", async () => {
