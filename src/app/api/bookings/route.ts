@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { randomBytes } from "node:crypto";
 import { connectDb } from "@/lib/mongodb";
-import { reservationWindowForItems, reservationWindowMinutes, slotsFor, validCalendarDate, validDate, minute } from "@/lib/availability";
+import { calculateBookingReservation, MAX_BOOKING_DURATION_MESSAGE, slotsFor, validCalendarDate, validDate, minute } from "@/lib/availability";
 import Booking from "@/models/Booking";
 import Availability from "@/models/Availability";
 import { validateCustomerFields } from "@/lib/domain";
@@ -70,9 +70,10 @@ export async function POST(request: Request) {
     try { quote = await loadCatalogueQuote({ items }); }
     catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Choose available services." }, { status: 400 }); }
     const settings = await Availability.findOne().select("slotMinutes bufferMinutes").lean();
-    const reservationDuration = reservationWindowForItems(quote.items, settings?.slotMinutes)
-      ?? reservationWindowMinutes(quote.durationMinutes, settings?.slotMinutes);
-    if (!reservationDuration) return Response.json({ error: "Appointment availability is not configured. Please try again later." }, { status: 503 });
+    const reservation = calculateBookingReservation(quote.componentCounts);
+    if (!reservation) return Response.json({ error: "Choose an available service." }, { status: 400 });
+    if (reservation.exceedsMaximum) return Response.json({ error: MAX_BOOKING_DURATION_MESSAGE }, { status: 400 });
+    const reservationDuration = reservation.minutes;
     if (!(await slotsFor(date, reservationDuration)).includes(time)) return Response.json({ error: "That appointment time is no longer available. Choose another time." }, { status: 409 });
 
     reservationId = new mongoose.Types.ObjectId();

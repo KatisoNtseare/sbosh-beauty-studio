@@ -23,7 +23,7 @@ import ServicePackage from "@/models/ServicePackage";
 import Counter from "@/models/Counter";
 import { POST as submitBooking } from "@/app/api/bookings/route";
 import { PATCH as updateBooking } from "@/app/api/admin/bookings/[id]/route";
-import { PATCH as updateService } from "@/app/api/admin/services/route";
+import { POST as createService, PATCH as updateService } from "@/app/api/admin/services/route";
 import { GET as getPublicServices } from "@/app/api/services/route";
 import { GET as getAdminBookings } from "@/app/api/admin/bookings/route";
 import { GET as getAdminAvailability, PUT as updateAvailability } from "@/app/api/admin/availability/route";
@@ -32,6 +32,7 @@ import { GET as getAdminPackages, POST as createPackage, PATCH as updatePackage,
 import { GET as getCatalogue } from "@/app/api/services/route";
 import { GET as getAvailability } from "@/app/api/availability/route";
 const cleanupBookingIds: mongoose.Types.ObjectId[] = [];
+const cleanupServiceIds: mongoose.Types.ObjectId[] = [];
 const cleanupPackageIds: mongoose.Types.ObjectId[] = [];
 const testRunId = randomUUID();
 const integrationLockId = new mongoose.Types.ObjectId("000000000000000000000001");
@@ -87,7 +88,7 @@ async function createPending(date: string, time = "10:00") {
   const booking = await Booking.create({
     reference: `IT-${testRunId}-${randomUUID()}`,
     customer: { name: "Integration Customer", phone: "+27813179144", email: "customer@example.test" },
-    service: { id: service._id, name: service.name, durationMinutes: 60 },
+    service: { id: service._id, name: service.name },
     description: "Integration test booking",
     preferredDate: date,
     preferredTime: time,
@@ -128,10 +129,10 @@ beforeAll(async () => {
   safeToCleanup = true;
   await Promise.all([Booking, Service, ServicePackage, Availability, ReservationDay, RateLimit, Counter].map((model) => model.createIndexes()));
 
-  service = await Service.create({ name: `Integration service ${testRunId}`, description: "Test", price: 190, priceConfirmed: true, durationMinutes: 60, durationConfirmed: true, extras: [{ key: "nail-art", name: "Nail Art", unitPrice: 15, method: "PER_NAIL" }], active: true });
-  pedicure = await Service.create({ name: `Integration pedicure ${testRunId}`, description: "Test pedicure", price: 110, priceConfirmed: true, durationMinutes: 30, durationConfirmed: true, active: true });
-  repair = await Service.create({ name: `Integration repair ${testRunId}`, description: "Price to be confirmed", priceConfirmed: false, durationMinutes: 45, durationConfirmed: true, active: true });
-  packageFixture = await ServicePackage.create({ name: `Integration package ${testRunId}`, description: "Test pair", serviceIds: [service._id, pedicure._id], active: true, additionalDurationMinutes: 0 });
+  service = await Service.create({ name: `Integration service ${testRunId}`, description: "Test", price: 190, priceConfirmed: true, extras: [{ key: "nail-art", name: "Nail Art", unitPrice: 15, method: "PER_NAIL" }], active: true });
+  pedicure = await Service.create({ name: `Integration pedicure ${testRunId}`, description: "Test pedicure", price: 110, priceConfirmed: true, active: true });
+  repair = await Service.create({ name: `Integration repair ${testRunId}`, description: "Price to be confirmed", priceConfirmed: false, active: true });
+  packageFixture = await ServicePackage.create({ name: `Integration package ${testRunId}`, description: "Test pair", serviceIds: [service._id, pedicure._id], active: true });
   const weekly = Array.from({ length: 7 }, (_, weekday) => ({ weekday, enabled: true, periods: [{ open: "09:00", close: "17:30" }] }));
   const availability = await Availability.create({ weekly, exceptions: [], blockedDates: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0, timeZone: "Africa/Johannesburg" });
   availabilityId = availability._id;
@@ -141,6 +142,7 @@ afterAll(async () => {
   try {
     if (safeToCleanup) {
       if (cleanupBookingIds.length) await Booking.deleteMany({ _id: { $in: cleanupBookingIds } });
+      if (cleanupServiceIds.length) await Service.deleteMany({ _id: { $in: cleanupServiceIds } });
       if (reservationDates.length) await ReservationDay.deleteMany({ date: { $in: [...new Set(reservationDates)] } });
       if (availabilityId) await Availability.deleteOne({ _id: availabilityId });
       if (packageFixture?._id) await ServicePackage.deleteOne({ _id: packageFixture._id });
@@ -268,10 +270,9 @@ describe("MongoDB booking and reservation integration", () => {
     expect(await Booking.countDocuments({ idempotencyKey: key })).toBe(1);
   });
 
-  it("offers configured hours and safely reserves one configured slot when a service has no confirmed duration", async () => {
+  it("offers configured hours and books one service without any configured duration", async () => {
     const date = nextDate();
     reservationDates.push(date);
-    await Service.updateOne({ _id: service._id }, { $unset: { durationMinutes: 1 }, $set: { durationConfirmed: false } });
 
     const availability = await getAvailability(new Request(`http://localhost/api/availability?date=${date}&serviceId=${service.id}`));
     expect(availability.status).toBe(200);
@@ -283,10 +284,43 @@ describe("MongoDB booking and reservation integration", () => {
     const submitted = await postBooking({ ...bookingBody(date), time: "09:00" }, `${testRunId}-duration-fallback-${randomUUID()}`);
     expect(submitted.response.status).toBe(201);
     const booking = await Booking.findOne({ reference: submitted.result.reference });
-    expect(booking).toMatchObject({ status: "PENDING", reservationDurationMinutes: 30, service: { durationMinutes: undefined } });
+    expect(booking).toMatchObject({ status: "PENDING", reservationDurationMinutes: 30 });
     expect((await adminAction(booking!.id, "approve", { date, time: "09:00" })).status).toBe(200);
     expect(await Booking.findById(booking!._id)).toMatchObject({ confirmedDate: date, confirmedStart: "09:00", confirmedEnd: "09:30" });
-    await Service.updateOne({ _id: service._id }, { $set: { durationMinutes: 60, durationConfirmed: true } });
+  });
+
+  it("allows exactly two hours and rejects longer selections in availability and booking submission", async () => {
+    const allowedDate = nextDate();
+    const items = (count: number) => Array.from({ length: count }, () => ({ serviceId: service.id, extras: [{ key: "nail-art", quantity: 2 }] }));
+    const available = await getAvailability(new Request(`http://localhost/api/availability?date=${allowedDate}&items=${encodeURIComponent(JSON.stringify(items(4)))}`));
+    expect(available.status).toBe(200);
+    expect((await available.json()).times).toContain("09:00");
+    const allowed = await postBooking({ ...bookingBody(allowedDate), serviceId: undefined, items: items(4) }, `${testRunId}-two-hours-${randomUUID()}`);
+    expect(allowed.response.status).toBe(201);
+    const allowedBooking = await Booking.findOne({ reference: allowed.result.reference });
+    expect(allowedBooking).toMatchObject({ reservationDurationMinutes: 120 });
+    expect(allowedBooking?.extras).toHaveLength(4);
+    expect(allowedBooking?.extras.every((extra: { subtotal?: number }) => extra.subtotal === 30)).toBe(true);
+    expect((await adminAction(allowedBooking!.id, "approve", { date: allowedDate, time: "10:00" })).status).toBe(200);
+    expect(await Booking.findById(allowedBooking!._id)).toMatchObject({ confirmedEnd: "12:00" });
+
+    const rejectedDate = nextDate();
+    const tooLongAvailability = await getAvailability(new Request(`http://localhost/api/availability?date=${rejectedDate}&items=${encodeURIComponent(JSON.stringify(items(5)))}`));
+    expect(tooLongAvailability.status).toBe(400);
+    expect((await tooLongAvailability.json()).error).toBe("A booking cannot exceed 2 hours. Please split your selection into separate bookings.");
+    const rejected = await postBooking({ ...bookingBody(rejectedDate), serviceId: undefined, items: items(5) }, `${testRunId}-too-long-${randomUUID()}`);
+    expect(rejected.response.status).toBe(400);
+    expect(rejected.result.error).toBe("A booking cannot exceed 2 hours. Please split your selection into separate bookings.");
+
+    const legacyDate = nextDate();
+    reservationDates.push(legacyDate);
+    const tooLongPackageSnapshot = { isPackage: true, components: Array.from({ length: 5 }, (_, index) => ({ id: service._id, name: `Legacy component ${index + 1}`, price: 190 })) };
+    const pendingLegacy = await Booking.create({ reference: `IT-${testRunId}-${randomUUID()}`, customer: { name: "Legacy Customer", phone: "0813179144" }, service: { id: packageFixture._id, name: "Legacy package", ...tooLongPackageSnapshot }, preferredDate: legacyDate, preferredTime: "10:00", status: "PENDING" });
+    cleanupBookingIds.push(pendingLegacy._id);
+    expect((await adminAction(pendingLegacy.id, "approve", { date: legacyDate, time: "10:00" })).status).toBe(409);
+    const approvedLegacy = await Booking.create({ reference: `IT-${testRunId}-${randomUUID()}`, customer: { name: "Legacy Customer", phone: "0813179144" }, service: { id: packageFixture._id, name: "Legacy package", ...tooLongPackageSnapshot }, preferredDate: legacyDate, preferredTime: "10:00", confirmedDate: legacyDate, confirmedStart: "10:00", confirmedEnd: "12:30", status: "APPROVED" });
+    cleanupBookingIds.push(approvedLegacy._id);
+    expect((await adminAction(approvedLegacy.id, "reschedule", { date: nextDate(), time: "10:00" })).status).toBe(409);
   });
 
   it("uses atomic database updates for overlapping, adjacent and buffered intervals", async () => {
@@ -359,11 +393,11 @@ describe("MongoDB booking and reservation integration", () => {
     sessionState.value = adminCookieValue(admin);
     const catalogue = await (await getCatalogue()).json();
     const item = catalogue.packages.find((entry: { _id: string }) => entry._id === packageFixture.id);
-    expect(item).toMatchObject({ price: 300, priceConfirmed: true, durationMinutes: 90 });
+    expect(item).toMatchObject({ price: 300, priceConfirmed: true });
     const result = await postBooking({ ...bookingBody(nextDate()), serviceId: undefined, packageId: packageFixture.id, extras: [{ key: `${service.id}:nail-art`, quantity: 2 }], totalPrice: 0 }, `${testRunId}-package-${randomUUID()}`);
     expect(result.response.status).toBe(201);
     const booking = await Booking.findOne({ reference: result.result.reference });
-    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, service: { isPackage: true, name: packageFixture.name, durationMinutes: 90 } });
+    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, reservationDurationMinutes: 60, service: { isPackage: true, name: packageFixture.name } });
     expect(booking?.service.components).toHaveLength(2);
     expect(booking?.extras[0].subtotal).toBe(30);
     await Service.updateOne({ _id: pedicure._id }, { $set: { price: 125 } });
@@ -385,7 +419,7 @@ describe("MongoDB booking and reservation integration", () => {
     }, `${testRunId}-cart-${randomUUID()}`);
     expect(result.response.status).toBe(201);
     const booking = await Booking.findOne({ reference: result.result.reference });
-    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, service: { durationMinutes: 90 } });
+    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, reservationDurationMinutes: 60 });
     expect(booking?.items).toMatchObject([{ name: service.name, price: 190 }, { name: pedicure.name, price: 110 }]);
     expect(booking?.extras).toMatchObject([{ name: "Nail Art", quantity: 2, subtotal: 30, componentId: service.id }]);
   });
@@ -400,11 +434,9 @@ describe("MongoDB booking and reservation integration", () => {
     expect(approved.status).toBe(200);
     expect(await Booking.findById(booking!._id)).toMatchObject({ totalPrice: 85, priceNeedsConfirmation: false });
 
-    await Service.updateOne({ _id: repair._id }, { $set: { durationConfirmed: false } });
     const availability = await getAvailability(new Request(`http://localhost/api/availability?date=${nextDate()}&serviceId=${repair.id}`));
     expect(availability.status).toBe(200);
     expect((await availability.json()).times).toContain("09:00");
-    await Service.updateOne({ _id: repair._id }, { $set: { durationConfirmed: true } });
   });
 
   it("does not create setup templates when the public catalogue is viewed", async () => {
@@ -415,12 +447,14 @@ describe("MongoDB booking and reservation integration", () => {
   });
 
   it("archives and reactivates a service while public listings only return active services", async () => {
-    const body = { id: service.id, name: service.name, description: service.description, fullDescription: "", category: "Nail services", priceLabel: "", minimumPrice: "", maximumPrice: "", durationMinutes: "60", displayOrder: "0", active: false };
+    const historicalCount = await Booking.countDocuments({ "service.id": service._id });
+    const body = { _id: service.id, name: service.name, description: service.description, fullDescription: "", category: "Nail services", priceLabel: "", minimumPrice: "", maximumPrice: "", displayOrder: "0", active: false };
     const archivedResponse = await updateService(new Request("http://localhost/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
     expect(archivedResponse.status).toBe(200);
     const archived = await Service.findById(service.id).lean();
     expect(archived?.active).toBe(false);
     expect(archived?.archivedAt).toBeInstanceOf(Date);
+    expect(await Booking.countDocuments({ "service.id": service._id })).toBe(historicalCount);
     const hidden = await (await getPublicServices()).json();
     expect(hidden.services.some((item: { _id: string }) => item._id === service.id)).toBe(false);
     expect(hidden.services.some((item: { _id: string }) => item._id === service.id)).toBe(false);
@@ -434,16 +468,40 @@ describe("MongoDB booking and reservation integration", () => {
     expect(visible.services.some((item: { _id: string }) => item._id === service.id)).toBe(true);
   });
 
+  it("creates a service through the admin API and updates that same record using _id", async () => {
+    sessionState.value = adminCookieValue(admin);
+    const name = `API service ${testRunId}`;
+    const createdResponse = await createService(new Request("http://localhost/api/admin/services", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, category: "Nail care", description: "Initial description", price: 80, priceConfirmed: true, displayOrder: 11 }) }));
+    expect(createdResponse.status).toBe(201);
+    const created = (await createdResponse.json()).service;
+    const serviceId = created._id as string;
+    cleanupServiceIds.push(new mongoose.Types.ObjectId(serviceId));
+    expect(created).not.toHaveProperty("durationMinutes");
+    const updatedResponse = await updateService(new Request("http://localhost/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ _id: serviceId, name, category: "Nail care", description: "Updated description", price: 95, priceConfirmed: true, displayOrder: 12, active: true }) }));
+    expect(updatedResponse.status).toBe(200);
+    expect((await updatedResponse.json()).service._id).toBe(serviceId);
+    expect(await Service.findById(serviceId)).toMatchObject({ name, description: "Updated description", price: 95, displayOrder: 12 });
+    const idUpdateResponse = await updateService(new Request("http://localhost/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: serviceId, name, category: "Nail care", description: "Updated using id", price: 95, priceConfirmed: true, displayOrder: 12, active: true }) }));
+    expect(idUpdateResponse.status).toBe(200);
+    expect(await Service.findById(serviceId)).toMatchObject({ description: "Updated using id" });
+    expect((await updateService(new Request("http://localhost/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, category: "Nail care" }) }))).status).toBe(400);
+    expect((await updateService(new Request("http://localhost/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "invalid", name, category: "Nail care" }) }))).status).toBe(400);
+    sessionState.value = "";
+    expect((await updateService(new Request("http://localhost/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: serviceId, name, category: "Nail care" }) }))).status).toBe(401);
+    sessionState.value = adminCookieValue(admin);
+    expect((await createService(new Request("http://localhost/api/admin/services", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, category: "Nail care" }) }))).status).toBe(409);
+  });
+
   it("updates packages, validates identifiers and compositions, and archives packages with booking history", async () => {
     sessionState.value = adminCookieValue(admin);
     const createdResponse = await createPackage(new Request("http://localhost/api/admin/packages", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: `API-created package ${testRunId}`, description: "Created through admin API", serviceIds: [service.id, pedicure.id], additionalDurationMinutes: 5, displayOrder: 25, active: true }),
+      body: JSON.stringify({ name: `API-created package ${testRunId}`, description: "Created through admin API", serviceIds: [service.id, pedicure.id], displayOrder: 25, active: true }),
     }));
     expect(createdResponse.status).toBe(201);
     const created = (await createdResponse.json()).package;
     cleanupPackageIds.push(new mongoose.Types.ObjectId(created._id));
-    expect(created).toMatchObject({ name: `API-created package ${testRunId}`, description: "Created through admin API", additionalDurationMinutes: 5, displayOrder: 25, active: true });
+    expect(created).toMatchObject({ name: `API-created package ${testRunId}`, description: "Created through admin API", displayOrder: 25, active: true });
     const deletedResponse = await deletePackage(new Request(`http://localhost/api/admin/packages?id=${created._id}`, { method: "DELETE" }));
     expect(deletedResponse.status).toBe(200);
     expect(await deletedResponse.json()).toMatchObject({ deleted: true });
@@ -456,7 +514,7 @@ describe("MongoDB booking and reservation integration", () => {
       name: `Edited package ${testRunId}`,
       description: "Edited package description",
       serviceIds: [service.id, pedicure.id],
-      additionalDurationMinutes: 15,
+
       displayOrder: 35,
       active: true,
     });
@@ -464,7 +522,7 @@ describe("MongoDB booking and reservation integration", () => {
     expect((await updated.json()).package).toMatchObject({
       name: `Edited package ${testRunId}`,
       description: "Edited package description",
-      additionalDurationMinutes: 15,
+
       displayOrder: 35,
       active: true,
     });
@@ -477,10 +535,10 @@ describe("MongoDB booking and reservation integration", () => {
     expect((await patch({ id: packageFixture.id, name: "Unauthorized", serviceIds: [service.id, pedicure.id] })).status).toBe(401);
     sessionState.value = adminCookieValue(admin);
 
-    const deactivated = await patch({ id: packageFixture.id, name: `Edited package ${testRunId}`, description: "Edited package description", serviceIds: [service.id, pedicure.id], additionalDurationMinutes: 15, displayOrder: 35, active: false });
+    const deactivated = await patch({ id: packageFixture.id, name: `Edited package ${testRunId}`, description: "Edited package description", serviceIds: [service.id, pedicure.id], displayOrder: 35, active: false });
     expect(deactivated.status).toBe(200);
     expect((await deactivated.json()).package.active).toBe(false);
-    const reactivated = await patch({ id: packageFixture.id, name: `Edited package ${testRunId}`, description: "Edited package description", serviceIds: [service.id, pedicure.id], additionalDurationMinutes: 15, displayOrder: 35, active: true });
+    const reactivated = await patch({ id: packageFixture.id, name: `Edited package ${testRunId}`, description: "Edited package description", serviceIds: [service.id, pedicure.id], displayOrder: 35, active: true });
     expect(reactivated.status).toBe(200);
     expect((await reactivated.json()).package.active).toBe(true);
 

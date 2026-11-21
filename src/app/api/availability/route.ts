@@ -1,5 +1,5 @@
 import { connectDb } from "@/lib/mongodb";
-import { reservationWindowForItems, reservationWindowMinutes, slotsFor, validDate } from "@/lib/availability";
+import { calculateBookingReservation, MAX_BOOKING_DURATION_MESSAGE, slotsFor, validDate } from "@/lib/availability";
 import Availability from "@/models/Availability";
 import { loadCatalogueQuote } from "@/lib/catalogue";
 
@@ -20,10 +20,11 @@ export async function GET(request: Request) {
     let quote;
     try { quote = await loadCatalogueQuote(items ? { items } : { serviceId, packageId, extras }); }
     catch (error) { return Response.json({ date, times: [], error: error instanceof Error ? error.message : "Choose an available service." }, { status: 404 }); }
+    const reservation = calculateBookingReservation(quote.componentCounts);
+    if (!reservation) return Response.json({ date, times: [], error: "Choose an available service." }, { status: 400 });
+    if (reservation.exceedsMaximum) return Response.json({ date, times: [], error: MAX_BOOKING_DURATION_MESSAGE }, { status: 400 });
+    const reservationDuration = reservation.minutes;
     const settings = await Availability.findOne().lean();
-    const reservationDuration = reservationWindowForItems(quote.items, settings?.slotMinutes)
-      ?? reservationWindowMinutes(quote.durationMinutes, settings?.slotMinutes);
-    if (!reservationDuration) return Response.json({ date, times: [], error: "Appointment availability is not configured yet." }, { status: 503 });
     const weekday = new Date(date + "T12:00:00Z").getUTCDay();
     const weekly = settings?.weekly?.find((item: { weekday: number }) => item.weekday === weekday);
     const closed = Boolean(settings?.blockedDates?.includes(date) || settings?.exceptions?.some((item: { date: string; enabled?: boolean }) => item.date === date && item.enabled === false));

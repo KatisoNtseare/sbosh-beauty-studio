@@ -7,7 +7,7 @@ let schedule: Record<string, unknown>;
 let reservations: { reservations: { bookingId: string; start: number; end: number }[] } | null;
 vi.mock("@/models/Availability", () => ({ default: { findOne: vi.fn(() => ({ lean: async () => schedule })) } }));
 vi.mock("@/models/ReservationDay", () => ({ default: { findOne: vi.fn(() => ({ lean: async () => reservations })) } }));
-import { reservationWindowForItems, reservationWindowMinutes, slotsFor, todayInSalon, validDate } from "@/lib/availability";
+import { calculateBookingReservation, slotsFor, todayInSalon, validDate } from "@/lib/availability";
 import { defaultWeeklySchedule, isDefaultWeeklySchedule } from "@/lib/default-availability";
 
 const nextDate = (offset = 2) => {
@@ -23,20 +23,20 @@ describe("service classification and lifecycle", () => {
     expect(classifyService("Beauty", "Toe treatment")).toBe("TOES");
     expect(classifyService("Other", "Consultation")).toBe("GENERAL");
   });
-  it("keeps configured appointment lengths per service", () => {
-    expect(validateServiceFields({ name: "Lash fill", category: "Lashes", durationMinutes: 45 })?.durationConfirmed).toBe(false);
-    expect(validateServiceFields({ name: "Lash fill", category: "Lashes", durationMinutes: 45, durationConfirmed: true })?.durationConfirmed).toBe(true);
-    expect(validateServiceFields({ name: "Nails", durationMinutes: 600 })?.classification).toBe("NAILS");
-    expect(validateServiceFields({ name: "Nail Repair" })?.durationMinutes).toBeUndefined();
+  it("ignores obsolete service duration values", () => {
+    const service = validateServiceFields({ name: "Lash fill", category: "Lashes", durationMinutes: "not-a-duration", durationConfirmed: true });
+    expect(service?.classification).toBe("LASHES");
+    expect(service).not.toHaveProperty("durationMinutes");
+    expect(service).not.toHaveProperty("durationConfirmed");
   });
   it("validates service price ranges and classification", () => {
     expect(validateServiceFields({ name: "Gel Nails", minimumPrice: "200", maximumPrice: "350" })).toMatchObject({ minimumPrice: 200, maximumPrice: 350, classification: "NAILS", active: true });
     expect(validateServiceFields({ name: "X", minimumPrice: 400, maximumPrice: 200 })).toBeNull();
   });
-  it("keeps configured duration and price in the submitted service snapshot", () => {
+  it("keeps booking service snapshots free of obsolete duration values", () => {
     const submitted = snapshotService({ _id: "service-1", name: "Overlay", category: "Nails", minimumPrice: 250, durationMinutes: 75, durationConfirmed: true, description: "Short" });
-    expect(submitted).toMatchObject({ name: "Overlay", minimumPrice: 250, classification: "NAILS", durationMinutes: 75 });
-    expect(snapshotService({ _id: "service-2", name: "Nail Repair", category: "Additional Services" }).durationMinutes).toBeUndefined();
+    expect(submitted).toMatchObject({ name: "Overlay", minimumPrice: 250, classification: "NAILS" });
+    expect(submitted).not.toHaveProperty("durationMinutes");
   });
   it("archives services with history and declares unique model indexes", () => {
     expect(serviceRemovalAction(true)).toBe("archive");
@@ -69,21 +69,21 @@ describe("appointment availability", () => {
     schedule = { weekly: [{ weekday: new Date(date + "T12:00:00Z").getUTCDay(), enabled: true, periods: [{ open: "09:00", close: "12:00" }, { open: "13:00", close: "18:00" }] }], exceptions: [], blockedDates: [], blockedPeriods: [{ date, start: "15:00", end: "16:00" }], breaks: [{ start: "12:00", end: "13:00" }], slotMinutes: 60, bufferMinutes: 0, timeZone: "Africa/Johannesburg" };
     reservations = { reservations: [{ bookingId: "existing-booking", start: 600, end: 660 }] };
   });
-  it("defines all seven business days from 09:00 to 17:30 and falls back to the configured slot window", async () => {
+  it("defines all seven business days from 09:00 to 17:30 and uses the fixed reservation block", async () => {
     expect(isDefaultWeeklySchedule(defaultWeeklySchedule)).toBe(true);
     expect(defaultWeeklySchedule).toHaveLength(7);
-    expect(reservationWindowMinutes(undefined, 30)).toBe(30);
-    expect(reservationWindowMinutes(45, 30)).toBe(45);
-    expect(reservationWindowMinutes(undefined, undefined)).toBeUndefined();
-    expect(reservationWindowForItems([{ durationMinutes: 45 }, {}], 30)).toBe(75);
-    expect(reservationWindowForItems([{}, {}], 30)).toBe(60);
-    expect(reservationWindowForItems([{ reservationDurationParts: [60, undefined] }], 30)).toBe(90);
+    expect(calculateBookingReservation([1])).toEqual({ minutes: 30, exceedsMaximum: false });
+    expect(calculateBookingReservation([2])).toEqual({ minutes: 60, exceedsMaximum: false });
+    expect(calculateBookingReservation([1, 2])).toEqual({ minutes: 90, exceedsMaximum: false });
+    expect(calculateBookingReservation([4])).toEqual({ minutes: 120, exceedsMaximum: false });
+    expect(calculateBookingReservation([5])).toEqual({ minutes: 150, exceedsMaximum: true });
+    expect(calculateBookingReservation([0])).toBeNull();
 
     const date = nextDate();
     const weekday = new Date(date + "T12:00:00Z").getUTCDay();
     schedule = { weekly: defaultWeeklySchedule, blockedDates: [], exceptions: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0 };
     reservations = null;
-    expect(await slotsFor(date, reservationWindowMinutes(undefined, 30)!)).toEqual(
+    expect(await slotsFor(date, calculateBookingReservation([1])!.minutes)).toEqual(
       Array.from({ length: 17 }, (_, index) => {
         const start = 9 * 60 + index * 30;
         return `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;

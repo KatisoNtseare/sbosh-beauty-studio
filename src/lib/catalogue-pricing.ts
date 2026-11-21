@@ -1,5 +1,5 @@
 export type ExtraMethod = "PER_NAIL" | "PER_DESIGN";
-export type CatalogueExtra = { key: string; name: string; unitPrice: number; method: ExtraMethod; durationMinutes?: number };
+export type CatalogueExtra = { key: string; name: string; unitPrice: number; method: ExtraMethod };
 export type ExtraSelection = { key: string; quantity: number };
 
 export function calculateExtraLines(extras: CatalogueExtra[], selections: ExtraSelection[]) {
@@ -10,7 +10,7 @@ export function calculateExtraLines(extras: CatalogueExtra[], selections: ExtraS
     seen.add(selection.key);
     const extra = extras.find((item) => item.key === selection.key);
     if (!extra || !Number.isInteger(selection.quantity) || selection.quantity < 1 || selection.quantity > 10) throw new Error("Choose a valid extra quantity.");
-    return { key: extra.key, name: extra.name, method: extra.method, unitPrice: extra.unitPrice, quantity: selection.quantity, subtotal: extra.unitPrice * selection.quantity, durationMinutes: extra.durationMinutes ?? 0 };
+    return { key: extra.key, name: extra.name, method: extra.method, unitPrice: extra.unitPrice, quantity: selection.quantity, subtotal: extra.unitPrice * selection.quantity };
   });
 }
 

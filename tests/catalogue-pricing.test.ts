@@ -38,9 +38,9 @@ describe("catalogue pricing", () => {
   });
 
   it("derives server quotes and ignores browser-supplied totals", () => {
-    const quote = buildServiceQuote({ _id: "507f1f77bcf86cd799439011", name: "French Set", price: 190, priceConfirmed: true, durationMinutes: 90, durationConfirmed: true, extras, active: true }, [{ key: "nail-art", quantity: 2 }, { key: "3d-effect", quantity: 1 }]);
+    const quote = buildServiceQuote({ _id: "507f1f77bcf86cd799439011", name: "French Set", price: 190, priceConfirmed: true, extras, active: true }, [{ key: "nail-art", quantity: 2 }, { key: "3d-effect", quantity: 1 }]);
     expect(quote.totalPrice).toBe(250);
-    expect(quote.durationMinutes).toBe(90);
+    expect(quote.componentCount).toBe(1);
     expect(calculateCatalogueTotal(quote.service.price ?? null, quote.extras.map((extra) => extra.subtotal))).toBe(250);
   });
 
@@ -49,13 +49,14 @@ describe("catalogue pricing", () => {
     expect(() => calculateExtraLines(extras, [{ key: "chrome", quantity: 11 }])).toThrow();
     expect(() => calculateExtraLines(extras, [{ key: "unavailable", quantity: 1 }])).toThrow();
     expect(() => calculateExtraLines(extras, [{ key: "chrome", quantity: 1 }, { key: "chrome", quantity: 2 }])).toThrow();
-    expect(buildServiceQuote({ _id: "507f1f77bcf86cd799439011", name: "Buff N' Shine", price: 70, priceConfirmed: true, durationMinutes: 30, durationConfirmed: true, extras: [], active: true }, []).totalPrice).toBe(70);
+    expect(buildServiceQuote({ _id: "507f1f77bcf86cd799439011", name: "Buff N' Shine", price: 70, priceConfirmed: true, extras: [], active: true }, []).totalPrice).toBe(70);
   });
 
   it("keeps unconfirmed catalogue prices explicit and out of totals", () => {
     const service = validateServiceFields({ name: "Nail Repair", category: "Additional Services", durationMinutes: 45, priceConfirmed: false });
-    expect(service).toMatchObject({ priceConfirmed: false, durationMinutes: 45 });
-    const quote = buildServiceQuote({ _id: "507f1f77bcf86cd799439011", name: "Nail Repair", durationMinutes: 45, durationConfirmed: true, active: true }, []);
+    expect(service).toMatchObject({ priceConfirmed: false });
+    expect(service).not.toHaveProperty("durationMinutes");
+    const quote = buildServiceQuote({ _id: "507f1f77bcf86cd799439011", name: "Nail Repair", active: true }, []);
     expect(quote.totalPrice).toBeNull();
     expect(quote.priceNeedsConfirmation).toBe(true);
     expect(validateServiceFields({ name: "Nail Repair", priceConfirmed: true })).toBeNull();
@@ -71,7 +72,8 @@ describe("catalogue pricing", () => {
   });
 
   it("validates package composition, distinct services, and no price override", () => {
-    expect(validatePackageFields({ name: "French pair", serviceIds: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"] })).toMatchObject({ serviceIds: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"], additionalDurationMinutes: 0 });
+    expect(validatePackageFields({ name: "French pair", serviceIds: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"], additionalDurationMinutes: 60 })).toMatchObject({ serviceIds: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"] });
+    expect(validatePackageFields({ name: "French pair", serviceIds: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"] })).not.toHaveProperty("additionalDurationMinutes");
     expect(validatePackageFields({ name: "Bad pair", serviceIds: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439011"] })).toBeNull();
   });
 });

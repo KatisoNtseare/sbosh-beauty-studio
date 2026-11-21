@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { connectDb } from "@/lib/mongodb";
 import { validAdminSession } from "@/lib/admin-auth";
-import { reservationWindowMinutes, slotsFor, validDate, minute } from "@/lib/availability";
+import { calculateBookingReservation, slotsFor, validDate, minute } from "@/lib/availability";
 import Booking from "@/models/Booking";
 import Availability from "@/models/Availability";
 import { adminIdentity } from "@/lib/admin-auth";
@@ -11,6 +11,19 @@ import { ensureReservationDay, releaseInterval, reserveInterval, transactionUnsu
 type Ctx = { params: Promise<{ id: string }> };
 class StateConflict extends Error {}
 type TransactionResult = "COMMITTED" | "CONFLICT" | "UNSUPPORTED";
+
+function bookingReservation(booking: { items?: { componentCount?: number; kind?: string }[]; service?: { isPackage?: boolean; components?: unknown[] } }) {
+  let counts: number[];
+  if (booking.items?.length) {
+    const completeSnapshot = booking.items.every((item) => Number.isInteger(item.componentCount) && Number(item.componentCount) > 0);
+    counts = completeSnapshot
+      ? booking.items.map((item) => Number(item.componentCount))
+      : booking.service?.components?.length
+        ? [booking.service.components.length]
+        : booking.items.map(() => 1);
+  } else counts = [booking.service?.isPackage ? Math.max(1, booking.service.components?.length ?? 1) : 1];
+  return calculateBookingReservation(counts);
+}
 
 async function runTransaction(work: (session: mongoose.ClientSession) => Promise<void>): Promise<TransactionResult> {
   const session = await mongoose.startSession();
@@ -77,8 +90,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
       if (!canTransitionBooking(booking.status, "reschedule") || !booking.confirmedDate || !booking.confirmedStart) return Response.json({ error: "Only approved appointments can be rescheduled." }, { status: 409 });
       const date = String(body.date ?? ""); const startTime = String(body.time ?? "");
       const settings = await Availability.findOne().select("slotMinutes bufferMinutes").lean();
-      const duration = reservationWindowMinutes(booking.reservationDurationMinutes ?? booking.service.durationMinutes, settings?.slotMinutes);
-      if (!duration) return Response.json({ error: "Appointment availability is not configured." }, { status: 503 });
+      const reservation = bookingReservation(booking);
+      if (!reservation) return Response.json({ error: "Booking services could not be verified." }, { status: 409 });
+      if (reservation.exceedsMaximum) return Response.json({ error: "This booking exceeds the two-hour limit and cannot be rescheduled." }, { status: 409 });
+      const duration = reservation.minutes;
       const start = minute(startTime); const end = start + duration;
 
       if (!validDate(date) || start < 0 || end >= 1440 || !(await slotsFor(date, duration, String(booking._id))).includes(startTime)) return Response.json({ error: "That time is outside configured availability." }, { status: 409 });
@@ -105,8 +120,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if (!canTransitionBooking(booking.status, "approve")) return Response.json({ error: "Only pending requests can be approved." }, { status: 409 });
     const date = String(body.date ?? booking.preferredDate); const startTime = String(body.time ?? booking.preferredTime);
     const settings = await Availability.findOne().select("slotMinutes bufferMinutes").lean();
-    const duration = reservationWindowMinutes(booking.reservationDurationMinutes ?? booking.service.durationMinutes, settings?.slotMinutes);
-    if (!duration) return Response.json({ error: "Appointment availability is not configured." }, { status: 503 });
+    const reservation = bookingReservation(booking);
+    if (!reservation) return Response.json({ error: "Booking services could not be verified." }, { status: 409 });
+    if (reservation.exceedsMaximum) return Response.json({ error: "This booking exceeds the two-hour limit and cannot be approved." }, { status: 409 });
+    const duration = reservation.minutes;
     const start = minute(startTime); const end = start + duration;
     let priceUpdate: Record<string, unknown> = {};
     let priceHistoryNote = "";

@@ -6,20 +6,13 @@ import { businessProfile } from "@/lib/brand";
 export { todayInSalon } from "@/lib/timezone";
 export function minute(value: string) { const [h, m] = value.split(":").map(Number); return Number.isInteger(h) && Number.isInteger(m) && h >= 0 && h < 24 && m >= 0 && m < 60 ? h * 60 + m : -1; }
 /** Use a confirmed service length when one exists. Otherwise reserve one configured availability slot. */
-export function reservationWindowMinutes(serviceMinutes: number | undefined, slotMinutes: number | undefined) {
-  if (Number.isInteger(serviceMinutes) && Number(serviceMinutes) > 0 && Number(serviceMinutes) <= 720) return Number(serviceMinutes);
-  if (Number.isInteger(slotMinutes) && Number(slotMinutes) >= 5 && Number(slotMinutes) <= 480) return Number(slotMinutes);
-  return undefined;
-}
-export function reservationWindowForItems(items: { durationMinutes?: number; reservationDurationParts?: (number | undefined)[] }[], slotMinutes: number | undefined) {
-  if (!Number.isInteger(slotMinutes) || Number(slotMinutes) < 5 || Number(slotMinutes) > 480) return undefined;
-  const fallback = Number(slotMinutes);
-  const duration = items.reduce((sum, item) => {
-    const parts = item.reservationDurationParts;
-    if (parts?.length) return sum + parts.reduce<number>((lineTotal, part) => lineTotal + (Number.isInteger(part) && Number(part) > 0 ? Number(part) : fallback), 0);
-    return sum + (Number.isInteger(item.durationMinutes) && Number(item.durationMinutes) > 0 ? Number(item.durationMinutes) : fallback);
-  }, 0);
-  return duration > 0 && duration <= 720 ? duration : undefined;
+export const DEFAULT_RESERVATION_BLOCK_MINUTES = 30;
+export const MAX_BOOKING_RESERVATION_MINUTES = 120;
+export const MAX_BOOKING_DURATION_MESSAGE = "A booking cannot exceed 2 hours. Please split your selection into separate bookings.";
+export function calculateBookingReservation(componentCounts: number[]) {
+  if (!Array.isArray(componentCounts) || !componentCounts.length || componentCounts.some((count) => !Number.isInteger(count) || count < 1 || count > 8)) return null;
+  const minutes = componentCounts.reduce((total, count) => total + count * DEFAULT_RESERVATION_BLOCK_MINUTES, 0);
+  return { minutes, exceedsMaximum: minutes > MAX_BOOKING_RESERVATION_MINUTES };
 }
 export function validCalendarDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -30,7 +23,7 @@ export function validCalendarDate(value: string) {
 export function validDate(value: string) { return validCalendarDate(value) && value >= todayInSalon(); }
 
 export async function slotsFor(date: string, duration: number, ignoreBookingId?: string) {
-  if (!Number.isInteger(duration) || duration < 1 || duration > 720) return [];
+  if (!Number.isInteger(duration) || duration < 1 || duration > MAX_BOOKING_RESERVATION_MINUTES) return [];
   const settings = await Availability.findOne().lean();
   if (!settings || !validDate(date) || settings.blockedDates?.includes(date)) return [];
   const legacyClosed = settings.exceptions?.some((item: { date: string; enabled?: boolean }) => item.date === date && item.enabled === false);

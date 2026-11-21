@@ -5,7 +5,7 @@ const extraSchema = new Schema({
   name: { type: String, required: true, trim: true, maxlength: 100 },
   unitPrice: { type: Number, required: true, min: 1 },
   method: { type: String, enum: ["PER_NAIL", "PER_DESIGN"], required: true },
-  durationMinutes: { type: Number, min: 0, max: 240 },
+  durationMinutes: { type: Number, min: 0, max: 240, select: false },
 }, { _id: false });
 
 const serviceSchema = new Schema({
@@ -20,8 +20,8 @@ const serviceSchema = new Schema({
   minimumPrice: { type: Number, min: 0 },
   maximumPrice: { type: Number, min: 0 },
   classification: { type: String, enum: ["LASHES", "NAILS", "TOES", "GENERAL"], default: "GENERAL" },
-  durationMinutes: { type: Number, min: 1, max: 720 },
-  durationConfirmed: { type: Boolean, default: false },
+  durationMinutes: { type: Number, min: 1, max: 720, select: false },
+  durationConfirmed: { type: Boolean, select: false },
   extras: { type: [extraSchema], default: [] },
   category: { type: String, default: "Nail services", maxlength: 80 },
   displayOrder: { type: Number, default: 0 },

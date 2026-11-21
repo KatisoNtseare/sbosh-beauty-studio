@@ -18,7 +18,7 @@ async function main() {
     let activatedTemplates = 0;
     for (const [index, item] of initialCatalogueServices.entries()) {
       const existing = await Service.findOne({ name: item.name }).lean();
-      const fields = { ...item, image: existing?.image || "/images/hero.jpg", classification: classifyService(item.category, item.name), active: true, displayOrder: existing?.displayOrder ?? index * 10, priceConfirmed: typeof item.price === "number", durationConfirmed: false };
+      const fields = { ...item, image: existing?.image || "/images/hero.jpg", classification: classifyService(item.category, item.name), active: true, displayOrder: existing?.displayOrder ?? index * 10, priceConfirmed: typeof item.price === "number" };
       if (!existing) {
         await Service.create(fields);
         insertedServices += 1;
@@ -35,10 +35,10 @@ async function main() {
     for (const [index, item] of initialCataloguePackages.entries()) {
       const serviceIds = item.serviceNames.map((component) => byName.get(component));
       if (serviceIds.some((id) => !id)) throw new Error(`Package component is missing for ${item.name}.`);
-      const result = await ServicePackage.updateOne({ name: item.name }, { $setOnInsert: { name: item.name, serviceIds: serviceIds as mongoose.Types.ObjectId[], description: "A paired manicure and pedicure, priced at the combined service total.", active: true, displayOrder: index * 10, additionalDurationMinutes: 0, image: "/images/hero.jpg" } }, { upsert: true });
+      const result = await ServicePackage.updateOne({ name: item.name }, { $setOnInsert: { name: item.name, serviceIds: serviceIds as mongoose.Types.ObjectId[], description: "A paired manicure and pedicure, priced at the combined service total.", active: true, displayOrder: index * 10, image: "/images/hero.jpg" } }, { upsert: true });
       createdPackages += result.upsertedCount;
     }
-    console.log(`Catalogue seed complete: ${insertedServices} service(s) added, ${activatedTemplates} inactive setup template(s) configured, and ${createdPackages} package(s) added. Existing catalogue records were left unchanged. No service-specific durations were invented; booking availability uses the configured slot interval unless a duration was already confirmed.`);
+    console.log(`Catalogue seed complete: ${insertedServices} service(s) added, ${activatedTemplates} inactive setup template(s) configured, and ${createdPackages} package(s) added. Existing catalogue records were left unchanged.`);
   } finally { await mongoose.disconnect(); }
 }
 

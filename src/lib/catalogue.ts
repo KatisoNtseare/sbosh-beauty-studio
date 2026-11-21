@@ -9,8 +9,6 @@ type PricedService = {
   name: string;
   price?: number;
   priceConfirmed?: boolean;
-  durationMinutes?: number;
-  durationConfirmed?: boolean;
   extras?: CatalogueExtra[];
   active?: boolean;
   image?: string;
@@ -25,9 +23,6 @@ export function buildServiceQuote(service: PricedService, selections: ExtraSelec
   const extras = calculateExtraLines(service.extras ?? [], selections).map((line) => ({ ...line, componentId: String(service._id), componentName: service.name }));
   const basePrice = service.priceConfirmed && typeof service.price === "number" ? service.price : null;
   const totalPrice = calculateCatalogueTotal(basePrice, extras.map((line) => line.subtotal));
-  const durationMinutes = service.durationConfirmed === true && Number.isInteger(service.durationMinutes) && Number(service.durationMinutes) > 0
-    ? Number(service.durationMinutes)
-    : undefined;
   return {
     service: {
       id: service._id,
@@ -39,15 +34,13 @@ export function buildServiceQuote(service: PricedService, selections: ExtraSelec
       priceConfirmed: basePrice !== null,
       category: service.category ?? "Nail care",
       classification: service.classification,
-      durationMinutes,
       components: [],
       isPackage: false,
     },
     extras,
     totalPrice,
     priceNeedsConfirmation: totalPrice === null,
-    durationMinutes,
-    reservationDurationParts: [durationMinutes],
+    componentCount: 1,
   };
 }
 
@@ -55,11 +48,10 @@ export function validatePackageFields(body: Record<string, unknown>) {
   const name = String(body.name ?? "").trim();
   const description = String(body.description ?? "").trim();
   const displayOrder = body.displayOrder == null ? 0 : Number(body.displayOrder);
-  const additionalDurationMinutes = body.additionalDurationMinutes == null || body.additionalDurationMinutes === "" ? 0 : Number(body.additionalDurationMinutes);
-  if (name.length < 3 || name.length > 120 || description.length > 1000 || !Number.isInteger(displayOrder) || displayOrder < 0 || displayOrder > 10_000 || !Number.isInteger(additionalDurationMinutes) || additionalDurationMinutes < 0 || additionalDurationMinutes > 240 || !Array.isArray(body.serviceIds) || body.serviceIds.length < 2 || body.serviceIds.length > 8) return null;
+  if (name.length < 3 || name.length > 120 || description.length > 1000 || !Number.isInteger(displayOrder) || displayOrder < 0 || displayOrder > 10_000 || !Array.isArray(body.serviceIds) || body.serviceIds.length < 2 || body.serviceIds.length > 8) return null;
   const serviceIds = body.serviceIds.map(String);
   if (serviceIds.some((id) => !mongoose.isValidObjectId(id)) || new Set(serviceIds.map((id) => id.toLowerCase())).size !== serviceIds.length) return null;
-  return { name, description, displayOrder, additionalDurationMinutes, active: body.active !== false, serviceIds };
+  return { name, description, displayOrder, active: body.active !== false, serviceIds };
 }
 
 export async function buildPackageQuote(servicePackage: {
@@ -67,7 +59,6 @@ export async function buildPackageQuote(servicePackage: {
   name: string;
   description?: string;
   image?: string;
-  additionalDurationMinutes?: number;
   serviceIds?: unknown[];
 }, components: PricedService[], selections: ExtraSelection[]) {
   if (!components.length || components.some((component) => component.active === false)) throw new Error("This package is no longer available.");
@@ -84,9 +75,6 @@ export async function buildPackageQuote(servicePackage: {
   const prices = components.map((component) => component.priceConfirmed && typeof component.price === "number" ? component.price : null);
   const basePrice = prices.some((price) => price === null) ? null : prices.reduce<number>((sum, price) => sum + (price ?? 0), 0);
   const totalPrice = calculateCatalogueTotal(basePrice, selected.map((line) => line.subtotal));
-  const durationMinutes = components.every((component) => component.durationConfirmed === true && Number.isInteger(component.durationMinutes) && Number(component.durationMinutes) > 0)
-    ? components.reduce((sum, component) => sum + Number(component.durationMinutes), 0)
-    : undefined;
   return {
     service: {
       id: servicePackage._id,
@@ -97,15 +85,13 @@ export async function buildPackageQuote(servicePackage: {
       category: "Combination Packages",
       price: basePrice ?? undefined,
       priceConfirmed: basePrice !== null,
-      durationMinutes,
       isPackage: true,
-      components: components.map((component) => ({ id: component._id, name: component.name, price: component.priceConfirmed ? component.price : undefined, durationMinutes: component.durationMinutes })),
+      components: components.map((component) => ({ id: component._id, name: component.name, price: component.priceConfirmed ? component.price : undefined })),
     },
     extras: selected,
     totalPrice,
     priceNeedsConfirmation: totalPrice === null,
-    durationMinutes,
-    reservationDurationParts: components.map((component) => component.durationConfirmed === true && Number.isInteger(component.durationMinutes) && Number(component.durationMinutes) > 0 ? Number(component.durationMinutes) : undefined),
+    componentCount: components.length,
   };
 }
 
@@ -134,14 +120,14 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
     const quote = await loadSingleCatalogueQuote(input);
     return {
       ...quote,
+      componentCounts: [quote.componentCount],
       items: [{
         id: quote.service.id,
         kind: quote.service.isPackage ? "package" : "service",
         name: quote.service.name,
         price: quote.service.price,
         priceConfirmed: quote.service.priceConfirmed,
-        durationMinutes: quote.durationMinutes,
-        reservationDurationParts: quote.reservationDurationParts,
+        componentCount: quote.componentCount,
       }],
     };
   }
@@ -157,9 +143,6 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
   });
   const quotes = await Promise.all(requests.map(loadSingleCatalogueQuote));
   const totalPrice = quotes.some((quote) => quote.totalPrice === null) ? null : quotes.reduce((sum, quote) => sum + (quote.totalPrice ?? 0), 0);
-  const durationMinutes = quotes.every((quote) => Number.isInteger(quote.durationMinutes) && Number(quote.durationMinutes) > 0)
-    ? quotes.reduce((sum, quote) => sum + Number(quote.durationMinutes), 0)
-    : undefined;
   const names = quotes.map((quote) => quote.service.name);
   const items = quotes.map((quote, index) => ({
     id: quote.service.id,
@@ -167,10 +150,9 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
     name: quote.service.name,
     price: quote.service.price,
     priceConfirmed: quote.service.priceConfirmed,
-    durationMinutes: quote.durationMinutes,
-    reservationDurationParts: quote.reservationDurationParts,
+    componentCount: quote.componentCount,
   }));
-  if (quotes.length === 1) return { ...quotes[0], items };
+  if (quotes.length === 1) return { ...quotes[0], componentCounts: [quotes[0].componentCount], items };
   return {
     service: {
       id: quotes[0].service.id,
@@ -181,14 +163,13 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
       price: totalPrice ?? undefined,
       priceConfirmed: totalPrice !== null,
       category: "Booking selection",
-      durationMinutes,
-      components: quotes.flatMap((quote) => quote.service.components.length ? quote.service.components : [{ id: quote.service.id, name: quote.service.name, price: quote.service.price, durationMinutes: quote.durationMinutes }]),
+      components: quotes.flatMap((quote) => quote.service.components.length ? quote.service.components : [{ id: quote.service.id, name: quote.service.name, price: quote.service.price }]),
       isPackage: false,
     },
     extras: quotes.flatMap((quote) => quote.extras),
     totalPrice,
     priceNeedsConfirmation: totalPrice === null,
-    durationMinutes,
+    componentCounts: quotes.map((quote) => quote.componentCount),
     items,
   };
 }
