@@ -7,6 +7,7 @@ import Availability from "@/models/Availability";
 import { adminIdentity } from "@/lib/admin-auth";
 import { canTransitionBooking } from "@/lib/domain";
 import { ensureReservationDay, releaseInterval, reserveInterval, transactionUnsupported } from "@/lib/reservations";
+import { sendBookingEmail } from "@/lib/booking-email";
 
 type Ctx = { params: Promise<{ id: string }> };
 class StateConflict extends Error {}
@@ -34,13 +35,21 @@ export async function PATCH(request: Request, { params }: Ctx) {
     const admin = await adminIdentity();
     if (!admin) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const now = new Date();
+    if (body.action === "retry-email") {
+      if (typeof body.notificationId !== "string" || !mongoose.isValidObjectId(body.notificationId)) return Response.json({ error: "Invalid notification." }, { status: 400 });
+      const notification = booking.notifications.find((item: { _id: mongoose.Types.ObjectId; status: string; type: string }) => String(item._id) === body.notificationId);
+      if (!notification || !["FAILED", "PENDING"].includes(notification.status)) return Response.json({ error: "Only failed email notifications can be retried." }, { status: 409 });
+      const result = await sendBookingEmail(booking._id, notification.type as Parameters<typeof sendBookingEmail>[1], true);
+      return Response.json({ booking: await Booking.findById(id).lean(), ...(result.warning ? { warning: result.warning } : {}) });
+    }
     if (body.action === "reject") {
       if (!canTransitionBooking(booking.status, "reject")) return Response.json({ error: "Only pending requests can be rejected." }, { status: 409 });
       const reason = String(body.reason ?? "").trim().slice(0, 500);
       const rejected = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "REJECTED", rejectionReason: reason, decidedBy: admin.id }, $push: { history: { status: "REJECTED", at: now, by: admin.name, note: reason } } });
       if (!rejected.modifiedCount) return Response.json({ error: "Booking changed; refresh and try again." }, { status: 409 });
       await releaseInterval(booking.preferredDate, booking._id);
-      return Response.json({ booking: await Booking.findById(id).lean() });
+      const email = await sendBookingEmail(booking._id, "CUSTOMER_REJECTED");
+      return Response.json({ booking: await Booking.findById(id).lean(), ...(email.warning ? { warning: email.warning } : {}) });
     }
     if (body.action === "complete") {
       if (!canTransitionBooking(booking.status, "complete")) return Response.json({ error: "Only approved appointments can be completed." }, { status: 409 });
@@ -140,6 +149,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
       const requestedStart = minute(booking.preferredTime);
       if (date !== booking.preferredDate || start !== requestedStart) await releaseInterval(booking.preferredDate, booking._id, requestedStart, requestedStart + duration);
     }
-    return Response.json({ booking: await Booking.findById(id).lean() });
+    const email = await sendBookingEmail(booking._id, "CUSTOMER_APPROVED");
+    return Response.json({ booking: await Booking.findById(id).lean(), ...(email.warning ? { warning: email.warning } : {}) });
   } catch { return Response.json({ error: "Booking could not be updated." }, { status: 503 }); }
 }

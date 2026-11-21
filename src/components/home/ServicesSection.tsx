@@ -14,21 +14,23 @@ const formatPrice = (item: CatalogueItem) => item.priceConfirmed && typeof item.
 
 function ServiceImage({ item }: { item: CatalogueItem }) {
   const [src, setSrc] = useState(item.image || "/images/hero.jpg");
-  return <div className="relative aspect-[4/3] overflow-hidden bg-sand">
-    <Image src={src} alt={item.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="object-cover" onError={() => setSrc("/images/hero.jpg")} />
+  return <div className="relative aspect-[3/2] overflow-hidden bg-sand">
+    <Image src={src} alt={item.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw" className="object-cover" onError={() => setSrc("/images/hero.jpg")} />
     <span className="absolute bottom-3 left-3 bg-cream/90 px-3 py-1 text-[10px] font-medium text-ink/75">Sbosh’s Beauty Studio</span>
   </div>;
 }
 
 function ItemCard({ item, onBook }: { item: CatalogueItem; onBook: (item: CatalogueItem) => void }) {
-  return <article className="group overflow-hidden border border-line bg-cream transition-colors hover:border-olive/60">
+  return <article className="group rounded-none border border-line bg-white transition-colors hover:border-olive/70">
     <ServiceImage item={item}/>
-    <div className="p-5 md:p-6">
-      <div className="flex items-start justify-between gap-3"><h3 className="font-display text-3xl font-medium leading-none">{item.name}</h3><span className="shrink-0 text-sm font-semibold text-olive">{formatPrice(item)}</span></div>
-      <p className="mt-3 min-h-10 text-sm leading-6 text-ink/68">{item.description || "A considered treatment from the studio."}</p>
+    <div className="p-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1"><h3 className="min-w-0 flex-1 basis-[130px] font-display text-2xl font-medium leading-[1.05]">{item.name}</h3><span className="max-w-full text-right text-xs font-semibold leading-5 text-olive">{formatPrice(item)}</span></div>
+      <p className="mt-2 min-h-10 text-[13px] leading-5 text-ink/75">{item.description || "A considered treatment from the studio."}</p>
       {item.components?.length ? <p className="mt-3 border-l border-rose pl-3 text-xs leading-5 text-ink/65">Includes {item.components.map((component) => component.name).join(" + ")}</p> : null}
-      <div className="mt-4 flex min-h-9 items-center justify-end gap-3 border-t border-line pt-3 text-xs text-ink/60">
-        <button type="button" onClick={() => onBook(item)} className="font-semibold text-olive underline decoration-olive/40 underline-offset-4">Book</button>
+      <div className="mt-5 border-t border-line pt-4">
+        <button type="button" onClick={() => onBook(item)} aria-label={`Book ${item.isPackage ? "package" : "service"}: ${item.name}`} className="inline-flex min-h-10 w-full items-center justify-center rounded-none bg-olive px-4 text-[13px] font-semibold text-white transition-colors hover:bg-gold-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-olive">
+          Book {item.isPackage ? "this package" : "this service"}
+        </button>
       </div>
     </div>
   </article>;
@@ -69,9 +71,9 @@ export default function ServicesSection() {
         {extras.length > 0 && <a href="#nail-art-extras" className="shrink-0 rounded-full border border-line bg-cream px-4 py-2 text-xs text-ink/75 transition-colors hover:border-olive hover:text-olive">Nail Art & Extras</a>}
       </nav>
       {error ? <p role="alert" className="border-y border-rose/50 py-6 text-sm">{error}</p> : !loaded ? <p aria-live="polite" className="border-y border-line py-6 text-sm text-ink/65">Loading the service menu…</p> : <>
-        {sections.map((section) => <section id={section.title.toLowerCase().replaceAll(" ", "-")} key={section.title} className="scroll-mt-36 border-t border-line py-10 md:py-14">
+        {sections.map((section) => <section id={section.title.toLowerCase().replaceAll(" ", "-")} key={section.title} className="scroll-mt-36 border-t border-line py-8 md:py-10">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3"><h3 className="font-display text-4xl md:text-5xl">{section.title}</h3><span className="text-xs text-ink/55">{section.items.length} {section.items.length === 1 ? "service" : "services"}</span></div>
-          {section.items.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{section.items.map((item) => <ItemCard key={item._id} item={item} onBook={book}/>)}</div> : <p className="border-l border-rose py-2 pl-4 text-sm text-ink/60">The studio is updating this part of the menu. Please check back soon.</p>}
+          {section.items.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">{section.items.map((item) => <ItemCard key={item._id} item={item} onBook={book}/>)}</div> : <p className="border-l border-rose py-2 pl-4 text-sm text-ink/60">The studio is updating this part of the menu. Please check back soon.</p>}
         </section>)}
         <section id="nail-art-extras" className="scroll-mt-36 border-y border-line bg-cream px-5 py-8 md:px-8"><div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_360px] md:items-start"><div><p className="text-[11px] font-semibold text-olive">Add a finishing detail</p><h3 className="mt-2 font-display text-4xl md:text-5xl">Nail art & extras</h3><p className="mt-3 max-w-xl text-sm leading-6 text-ink/65">Optional details can be selected with compatible services when you request an appointment.</p></div>{extras.length ? <dl className="divide-y divide-line">{extras.map((extra) => <div key={extra.key} className="flex items-center justify-between gap-4 py-3 text-sm"><dt>{extra.name}<span className="mt-1 block text-xs text-ink/55">{extra.method === "PER_NAIL" ? "Charged per nail" : "Charged per design"}</span></dt><dd className="shrink-0 font-semibold text-olive">R{extra.unitPrice} {extra.method === "PER_NAIL" ? "/ nail" : "/ design"}</dd></div>)}</dl> : <p className="text-sm text-ink/60">Extras are being configured by the studio.</p>}</div></section>
       </>}

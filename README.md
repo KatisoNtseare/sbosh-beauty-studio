@@ -32,7 +32,7 @@ The application reads only `MONGODB_URI`. Integration-test setup requires `MONGO
 
 ## Customer booking flow
 
-Customers select a public service and use **Book now** to open `/cart?service=<id>`. The service is preselected and shown with its image, description and price. Customers choose a date, then select a time returned by the server's current availability calculation. Name and email are required; phone and notes are optional.
+Customers select a public service and use **Book now** to open `/cart?service=<id>`. The service is preselected and shown with its image, description and price. Customers choose a date, then select a time returned by the server's current availability calculation. Name, phone and email are required; notes are optional. After saving the request, the customer receives a pending receipt and the configured admin recipients receive a new request alert. The customer receives another email automatically after approval or rejection.
 
 Each request is stored as `PENDING` and receives a sequential reference such as `#SBS1`. A request is not an appointment confirmation. The studio reviews it in `/admin` and approves it at the requested or another available time, or rejects it with an optional reason. Customers receive the decision by email. Pending requests do not reserve appointment time. Approval rechecks availability and retains the MongoDB atomic reservation and overlap protection.
 
@@ -46,13 +46,13 @@ Use the existing private environment keys in `.env.local` and the hosting secret
 | --- | --- |
 | `ZOHO_SMTP_HOST` | Zoho SMTP host for the account and region |
 | `ZOHO_SMTP_PORT` | SMTP port; port 465 uses implicit TLS, other configured ports use STARTTLS |
-| `ZOHO_SMTP_USER` | Zoho mailbox / authenticated sender |
+| `ZOHO_SMTP_USER` | Zoho mailbox used to authenticate with SMTP |
 | `ZOHO_SMTP_PASS` | Zoho mailbox password or app-specific password |
 | `CONTACT_RECEIVER` | Administrator booking notification recipient; falls back to `ADMIN_EMAIL` |
 | `NEXT_PUBLIC_APP_URL` | Public application URL used for the dashboard link |
 | `ADMIN_EMAIL` | Administrator sign-in identity and fallback notification recipient |
 
-An administrator email is recorded on each booking before delivery. SMTP delivery happens after booking state is saved. Failed notices remain visible in the dashboard and can be retried; delivery errors do not undo a booking or approval. Notification records prevent routine duplicate sends and track attempts, delivery time and a safe failure message.
+The authenticated mailbox is used as the sender unless `ZohoSmtp_FromEmail` is set; `ZohoSmtp_FromName` can set the display name. Existing deployments using the older `ZohoSmtp_*` variables continue to work. Set `CONTACT_RECEIVER` to one or more comma-separated admin recipients; it falls back to `ADMIN_EMAIL`. Customer and admin messages use separate Pug templates in `src/lib/email-templates`; customer messages contain studio contact details and never include the admin dashboard link. SMTP delivery happens after booking state is saved. Failed notices remain visible in the dashboard and can be retried; delivery errors do not undo a booking or approval. Notification records prevent routine duplicate sends and track attempts, delivery time and a safe failure message.
 
 ## Availability and booking reservations
 

@@ -10,6 +10,7 @@ import { bookingSubmissionFingerprint, sameBookingSubmission, type BookingLineSu
 import { requestIp, withinRateLimit } from "@/lib/rate-limit";
 import { nextBookingReference } from "@/lib/booking-reference";
 import { releaseInterval, reserveInterval } from "@/lib/reservations";
+import { sendBookingEmail } from "@/lib/booking-email";
 
 function parseItems(body: Record<string, unknown>): BookingLineSubmission[] | null {
   const source = body.items === undefined
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     body = await request.json().catch(() => null);
     if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ error: "Check your details and try again." }, { status: 400 });
     const customer = validateCustomerFields(body);
-    if (!customer) return Response.json({ error: "Enter your full name and a valid contact number." }, { status: 400 });
+    if (!customer) return Response.json({ error: "Enter your full name, a valid contact number and a valid email address." }, { status: 400 });
     const date = String(body.date ?? "");
     const time = String(body.time ?? "");
     const items = parseItems(body);
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
     const prior = await Booking.findOne({ idempotencyKey }).select("+idempotencyFingerprint").lean();
     if (prior) {
       if (!sameBookingSubmission(prior, fingerprint, submitted, secret)) return Response.json({ error: "This submission key was already used for different booking details." }, { status: 409 });
-      return Response.json({ reference: prior.reference, status: prior.status }, { status: 200 });
+      return Response.json({ reference: prior.reference, status: prior.status, customerEmailSent: prior.notifications?.some((item: { type: string; status: string }) => item.type === "CUSTOMER_REQUEST_RECEIVED" && item.status === "SENT") === true }, { status: 200 });
     }
     if (!validDate(date)) return Response.json({ error: "Choose a valid future date." }, { status: 400 });
     let quote;
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const concurrent = await Booking.findOne({ idempotencyKey }).select("+idempotencyFingerprint").lean();
         if (concurrent) {
-          if (sameBookingSubmission(concurrent, fingerprint, submitted, secret)) return Response.json({ reference: concurrent.reference, status: concurrent.status }, { status: 200 });
+          if (sameBookingSubmission(concurrent, fingerprint, submitted, secret)) return Response.json({ reference: concurrent.reference, status: concurrent.status, customerEmailSent: concurrent.notifications?.some((item: { type: string; status: string }) => item.type === "CUSTOMER_REQUEST_RECEIVED" && item.status === "SENT") === true }, { status: 200 });
           return Response.json({ error: "This submission key was already used for different booking details." }, { status: 409 });
         }
         await new Promise((resolve) => setTimeout(resolve, 40));
@@ -110,6 +111,10 @@ export async function POST(request: Request) {
       history: [{ status: "PENDING", at: new Date(), by: "customer" }],
     });
     bookingSaved = true;
+    const [, customerEmail] = await Promise.all([
+      sendBookingEmail(booking._id, "ADMIN_NEW_BOOKING"),
+      sendBookingEmail(booking._id, "CUSTOMER_REQUEST_RECEIVED"),
+    ]);
     return Response.json({
       reference: booking.reference,
       status: booking.status,
@@ -120,12 +125,13 @@ export async function POST(request: Request) {
       extras: booking.extras,
       preferredDate: booking.preferredDate,
       preferredTime: booking.preferredTime,
+      customerEmailSent: customerEmail.sent,
     }, { status: 201 });
   } catch (error) {
     if (reservationId && !bookingSaved) await releaseInterval(reservationDate, reservationId).catch(() => undefined);
     if (error && typeof error === "object" && "code" in error && error.code === 11000 && idempotencyKey && submitted) {
       const prior = await Booking.findOne({ idempotencyKey }).select("+idempotencyFingerprint").lean();
-      if (prior && sameBookingSubmission(prior, bookingSubmissionFingerprint(submitted, process.env.AUTH_SECRET ?? ""), submitted, process.env.AUTH_SECRET ?? "")) return Response.json({ reference: prior.reference, status: prior.status }, { status: 200 });
+      if (prior && sameBookingSubmission(prior, bookingSubmissionFingerprint(submitted, process.env.AUTH_SECRET ?? ""), submitted, process.env.AUTH_SECRET ?? "")) return Response.json({ reference: prior.reference, status: prior.status, customerEmailSent: prior.notifications?.some((item: { type: string; status: string }) => item.type === "CUSTOMER_REQUEST_RECEIVED" && item.status === "SENT") === true }, { status: 200 });
       if (prior) return Response.json({ error: "This submission key was already used for different booking details." }, { status: 409 });
     }
     return Response.json({ error: "We couldn’t save your request. Please try again." }, { status: 503 });
