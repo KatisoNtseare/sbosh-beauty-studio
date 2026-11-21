@@ -31,8 +31,6 @@ import { GET as getAdminServices } from "@/app/api/admin/services/route";
 import { GET as getAdminPackages, POST as createPackage, PATCH as updatePackage, DELETE as deletePackage } from "@/app/api/admin/packages/route";
 import { GET as getCatalogue } from "@/app/api/services/route";
 import { GET as getAvailability } from "@/app/api/availability/route";
-const smtpMock = (globalThis as typeof globalThis & { __integrationSmtpMock: { sendMail: ReturnType<typeof vi.fn> } }).__integrationSmtpMock;
-
 const cleanupBookingIds: mongoose.Types.ObjectId[] = [];
 const cleanupPackageIds: mongoose.Types.ObjectId[] = [];
 const testRunId = randomUUID();
@@ -134,7 +132,7 @@ beforeAll(async () => {
   pedicure = await Service.create({ name: `Integration pedicure ${testRunId}`, description: "Test pedicure", price: 110, priceConfirmed: true, durationMinutes: 30, durationConfirmed: true, active: true });
   repair = await Service.create({ name: `Integration repair ${testRunId}`, description: "Price to be confirmed", priceConfirmed: false, durationMinutes: 45, durationConfirmed: true, active: true });
   packageFixture = await ServicePackage.create({ name: `Integration package ${testRunId}`, description: "Test pair", serviceIds: [service._id, pedicure._id], active: true, additionalDurationMinutes: 0 });
-  const weekly = Array.from({ length: 7 }, (_, weekday) => ({ weekday, enabled: true, periods: [{ open: "09:00", close: "18:00" }] }));
+  const weekly = Array.from({ length: 7 }, (_, weekday) => ({ weekday, enabled: true, periods: [{ open: "09:00", close: "17:30" }] }));
   const availability = await Availability.create({ weekly, exceptions: [], blockedDates: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0, timeZone: "Africa/Johannesburg" });
   availabilityId = availability._id;
 });
@@ -212,13 +210,7 @@ describe("MongoDB booking and reservation integration", () => {
     expect(first.response.status).toBe(201);
     expect(first.result.reference).toMatch(/^#SBS\d+$/);
     const submitted = await Booking.findOne({ reference: first.result.reference });
-    expect(submitted?.notifications[0]).toMatchObject({ type: "ADMIN_NEW_BOOKING", status: "SENT" });
-    expect(smtpMock.sendMail).toHaveBeenLastCalledWith(expect.objectContaining({
-      to: "admin@example.test",
-      text: expect.stringContaining("Status: PENDING"),
-      html: expect.stringContaining("&lt;img src=x onerror=alert(1)&gt; Client"),
-    }));
-    expect(smtpMock.sendMail.mock.calls.at(-1)?.[0].html).not.toContain("<img src=x");
+    expect(submitted?.notifications).toHaveLength(0);
 
     await Availability.updateOne({ _id: availabilityId }, { $push: { blockedPeriods: { date, start: "10:00", end: "11:00" } } });
     const retry = await postBooking(body, key);
@@ -241,7 +233,7 @@ describe("MongoDB booking and reservation integration", () => {
     expect(new Set(sameKey.map(({ result }) => result.reference)).size).toBe(1);
     expect(await Booking.countDocuments({ idempotencyKey: key })).toBe(1);
     const single = await Booking.findOne({ idempotencyKey: key });
-    expect(single?.notifications.filter((notice: { type: string }) => notice.type === "ADMIN_NEW_BOOKING")).toHaveLength(1);
+    expect(single?.notifications).toHaveLength(0);
 
     const competingDate = nextDate();
     reservationDates.push(competingDate);
@@ -258,46 +250,43 @@ describe("MongoDB booking and reservation integration", () => {
     expect(await ReservationDay.countDocuments({ date: competingDate, "reservations.0": { $exists: true } })).toBe(1);
   });
 
-  it("keeps a failed new-booking email retryable and retries without another booking or notification", async () => {
+  it("does not send email for booking submissions or expose an email retry action", async () => {
     const date = nextDate();
     reservationDates.push(date);
     const key = `${testRunId}-email-fail-${randomUUID()}`;
     const body = bookingBody(date);
-    smtpMock.sendMail.mockRejectedValueOnce(new Error("fake SMTP failure"));
     const first = await postBooking(body, key);
     expect(first.response.status).toBe(201);
-    expect(first.result.emailStatus).toBe("FAILED");
     const booking = await Booking.findOne({ idempotencyKey: key });
     expect(booking?.status).toBe("PENDING");
-    expect(booking?.notifications).toHaveLength(1);
-    expect(booking?.notifications[0].status).toBe("FAILED");
+    expect(booking?.notifications).toHaveLength(0);
 
-    const retried = await adminAction(String(booking?._id), "retry-email", { notificationId: String(booking?.notifications[0]._id) });
-    expect(retried.status).toBe(200);
-    const updated = await Booking.findById(booking?._id);
-    expect(updated?.status).toBe("PENDING");
-    expect(updated?.notifications).toHaveLength(1);
-    expect(updated?.notifications[0]).toMatchObject({ status: "SENT", attemptCount: 2 });
+    const retry = await adminAction(String(booking?._id), "retry-email", { notificationId: new mongoose.Types.ObjectId().toString() });
+    expect(retry.status).toBe(400);
     const replay = await postBooking(body, key);
     expect(replay.response.status).toBe(200);
     expect(await Booking.countDocuments({ idempotencyKey: key })).toBe(1);
-    expect(smtpMock.sendMail).toHaveBeenCalledTimes(2);
   });
 
-  it("recovers only stale SENDING notifications through the atomic retry claim", async () => {
+  it("offers configured hours and safely reserves one configured slot when a service has no confirmed duration", async () => {
     const date = nextDate();
     reservationDates.push(date);
-    const created = await postBooking(bookingBody(date), `${testRunId}-stale-${randomUUID()}`);
-    const booking = await Booking.findOne({ reference: created.result.reference });
-    if (!booking) throw new Error("Test booking was not saved.");
-    const notificationId = String(booking.notifications[0]._id);
-    await Booking.updateOne({ _id: booking._id }, { $set: { "notifications.0.status": "SENDING", "notifications.0.attemptedAt": new Date() } });
-    expect((await adminAction(String(booking._id), "retry-email", { notificationId })).status).toBe(409);
+    await Service.updateOne({ _id: service._id }, { $unset: { durationMinutes: 1 }, $set: { durationConfirmed: false } });
 
-    await Booking.updateOne({ _id: booking._id }, { $set: { "notifications.0.attemptedAt": new Date(Date.now() - 6 * 60_000) } });
-    const recovered = await adminAction(String(booking._id), "retry-email", { notificationId });
-    expect(recovered.status).toBe(200);
-    expect((await Booking.findById(booking._id))?.notifications[0]).toMatchObject({ status: "SENT", attemptCount: 2 });
+    const availability = await getAvailability(new Request(`http://localhost/api/availability?date=${date}&serviceId=${service.id}`));
+    expect(availability.status).toBe(200);
+    const times = (await availability.json()).times as string[];
+    expect(times[0]).toBe("09:00");
+    expect(times).toContain("17:00");
+    expect(times).not.toContain("17:30");
+
+    const submitted = await postBooking({ ...bookingBody(date), time: "09:00" }, `${testRunId}-duration-fallback-${randomUUID()}`);
+    expect(submitted.response.status).toBe(201);
+    const booking = await Booking.findOne({ reference: submitted.result.reference });
+    expect(booking).toMatchObject({ status: "PENDING", reservationDurationMinutes: 30, service: { durationMinutes: undefined } });
+    expect((await adminAction(booking!.id, "approve", { date, time: "09:00" })).status).toBe(200);
+    expect(await Booking.findById(booking!._id)).toMatchObject({ confirmedDate: date, confirmedStart: "09:00", confirmedEnd: "09:30" });
+    await Service.updateOne({ _id: service._id }, { $set: { durationMinutes: 60, durationConfirmed: true } });
   });
 
   it("uses atomic database updates for overlapping, adjacent and buffered intervals", async () => {
@@ -328,14 +317,12 @@ describe("MongoDB booking and reservation integration", () => {
     const rejected = await createPending(nextDate());
     const rejection = await adminAction(rejected.id, "reject", { reason: "Please choose another time." });
     expect(rejection.status).toBe(200);
-    expect((await rejection.json()).emailStatus).toBeUndefined();
     expect((await Booking.findById(rejected.id))?.notifications).toHaveLength(0);
     expect(await ReservationDay.findOne({ date: rejected.preferredDate })).toBeNull();
 
     const cancelled = await createPending(nextDate());
     const approval = await adminAction(cancelled.id, "approve", { date: cancelled.preferredDate, time: "10:00" });
     expect(approval.status).toBe(200);
-    expect((await approval.json()).emailStatus).toBeUndefined();
     expect((await Booking.findById(cancelled.id))?.notifications).toHaveLength(0);
     expect(await ReservationDay.countDocuments({ date: cancelled.preferredDate, "reservations.0": { $exists: true } })).toBe(1);
     expect((await adminAction(cancelled.id, "cancel")).status).toBe(200);
@@ -415,8 +402,8 @@ describe("MongoDB booking and reservation integration", () => {
 
     await Service.updateOne({ _id: repair._id }, { $set: { durationConfirmed: false } });
     const availability = await getAvailability(new Request(`http://localhost/api/availability?date=${nextDate()}&serviceId=${repair.id}`));
-    expect(availability.status).toBe(409);
-    expect(await availability.json()).toMatchObject({ times: [] });
+    expect(availability.status).toBe(200);
+    expect((await availability.json()).times).toContain("09:00");
     await Service.updateOne({ _id: repair._id }, { $set: { durationConfirmed: true } });
   });
 

@@ -11,8 +11,8 @@ import { businessProfile } from "@/lib/brand";
 import { todayInSalon } from "@/lib/timezone";
 import { addCartEntry, getCartSnapshot, getServerCartSnapshot, saveCart, subscribeCart, type CartEntry } from "@/lib/cart";
 
-type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN"; durationMinutes?: number; componentName?: string };
-type CatalogueItem = { _id: string; name: string; description: string; fullDescription?: string; image: string; category: string; price?: number; priceConfirmed: boolean; durationMinutes?: number; isPackage?: boolean; components?: { name: string }[]; extras?: Extra[] };
+type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN"; componentName?: string };
+type CatalogueItem = { _id: string; name: string; description: string; fullDescription?: string; image: string; category: string; price?: number; priceConfirmed: boolean; isPackage?: boolean; components?: { name: string }[]; extras?: Extra[] };
 type BookingResult = { reference: string; status: string; totalPrice: number | null; priceNeedsConfirmation: boolean; preferredDate: string; preferredTime: string; items: { name: string; price?: number; priceConfirmed: boolean }[]; extras: { name: string; quantity: number; unitPrice: number; subtotal: number }[] };
 type CartLine = { entry: CartEntry; item?: CatalogueItem };
 const input = "h-12 w-full rounded-xl border border-taupe bg-white px-3.5 text-ink";
@@ -62,12 +62,12 @@ export default function BookingForm() {
     extras: Object.entries(entry.extras).filter(([, quantity]) => quantity > 0).map(([key, quantity]) => ({ key, quantity })),
   })), [lines]);
   const quoteQuery = JSON.stringify(itemsForQuote);
-  const allDurationsSet = lines.length > 0 && lines.every((line) => Boolean(line.item?.durationMinutes));
+  const itemsReady = lines.length > 0 && itemsForQuote.length === lines.length;
   const allPricesSet = lines.length > 0 && lines.every((line) => line.item?.priceConfirmed && typeof line.item.price === "number");
   const extrasTotal = lines.reduce((sum, line) => sum + (line.item?.extras ?? []).reduce((itemSum, extra) => itemSum + extra.unitPrice * (line.entry.extras[extra.key] || 0), 0), 0);
   const total = allPricesSet ? lines.reduce((sum, line) => sum + Number(line.item?.price), 0) + extrasTotal : null;
 
-  function updateCart(next: CartEntry[]) { saveCart(next); setSuccess(null); setTimes([]); setTime(""); setAvailabilityLoading(false); }
+  function updateCart(next: CartEntry[]) { saveCart(next); setSuccess(null); setTimes([]); setTime(""); setAvailabilityLoading(Boolean(date && next.length)); setAvailabilityMessage(date && next.length ? "Checking available times…" : "Choose a date to see available times."); }
   function updateExtra(entry: CartEntry, key: string, raw: string, extra: Extra) {
     const quantity = raw === "" ? 0 : Number(raw);
     if (!Number.isInteger(quantity) || quantity < 0 || quantity > 10) { toast.error("Enter a quantity from 0 to 10."); return; }
@@ -77,7 +77,7 @@ export default function BookingForm() {
   }
 
   useEffect(() => {
-    if (!date || !lines.length || itemsForQuote.length !== lines.length || !allDurationsSet) return;
+    if (!date || !itemsReady) return;
     const controller = new AbortController();
     let timedOut = false;
     const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
@@ -98,11 +98,11 @@ export default function BookingForm() {
       if (error instanceof Error) toast.warning(error.message);
     }).finally(() => { window.clearTimeout(timeout); if (!controller.signal.aborted) setAvailabilityLoading(false); });
     return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [date, lines.length, itemsForQuote.length, quoteQuery, allDurationsSet]);
+  }, [date, itemsReady, quoteQuery]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !cart.length || !date || !time || !times.includes(time) || !allDurationsSet) {
+    if (busy || !cart.length || !itemsReady || !date || !time || !times.includes(time)) {
       setValidationError("Choose services, an available date, and one of the available times.");
       toast.warning("Complete your service, date, and time selection.");
       return;
@@ -160,7 +160,6 @@ export default function BookingForm() {
             <div className="min-w-0"><div className="flex items-start justify-between gap-3"><div><h3 className="font-display text-3xl">{item?.name ?? "This service is no longer available"}</h3><p className="mt-1 text-xs text-ink/55">{entry.kind === "package" ? "Combination package" : item?.category}</p></div><button type="button" onClick={() => { updateCart(cart.filter((line) => lineKey(line) !== lineKey(entry))); toast.info("Item removed from your booking."); }} className="text-xs text-ink/65 underline">Remove</button></div>
               {item?.description && <p className="mt-2 text-sm leading-6 text-ink/65">{item.description}</p>}{item?.components?.length ? <p className="mt-2 text-xs text-ink/60">Includes {item.components.map((component) => component.name).join(" + ")}</p> : null}
               <p className="mt-3 text-sm font-semibold">{item?.priceConfirmed && item.price != null ? `R${item.price}` : "Price to be confirmed"}</p>
-              {item && !item.durationMinutes && <p className="mt-1 text-xs text-rose">Booking unavailable until the studio sets this service’s appointment length.</p>}
               {item?.extras?.length ? <div className="mt-4 border-t border-line pt-3"><h4 className="text-sm font-semibold">Optional extras</h4><div className="mt-2 divide-y divide-line">{item.extras.map((extra) => {
                 const quantity = entry.extras[extra.key] || 0;
                 return <div key={extra.key} className="grid grid-cols-[minmax(0,1fr)_86px_auto] items-center gap-3 py-2"><label htmlFor={`${lineKey(entry)}-${extra.key}`} className="text-xs">{extra.name}{extra.componentName && <span className="block text-[11px] text-ink/50">For {extra.componentName}</span>}<span className="mt-1 block text-[11px] text-ink/55">R{extra.unitPrice} {methodLabel(extra)}</span></label><input id={`${lineKey(entry)}-${extra.key}`} type="number" inputMode="numeric" min={0} max={10} step={1} value={quantity || ""} placeholder="0" aria-label={`${extra.name} quantity`} onChange={(event) => updateExtra(entry, extra.key, event.target.value, extra)} className="h-10 w-full rounded-lg border border-taupe bg-white px-2 text-sm"/><span className="text-xs font-semibold">{quantity ? `R${quantity * extra.unitPrice}` : "—"}</span></div>;
@@ -171,7 +170,7 @@ export default function BookingForm() {
       </section>
 
       <section className="border-b border-line pb-8"><p className="mb-2 text-xs font-semibold text-olive">Choose your appointment</p><h2 className="mb-5 font-display text-4xl">Date and time</h2>
-        <label className="flex max-w-sm flex-col gap-2 text-sm font-medium">Appointment date<input type="date" required min={todayInSalon()} value={date} onChange={(event) => { const nextDate = event.target.value; setDate(nextDate); setTime(""); setTimes([]); setAvailabilityLoading(Boolean(nextDate && allDurationsSet && itemsForQuote.length === lines.length)); setAvailabilityMessage(nextDate ? "Checking available times…" : "Choose a date to see available times."); setValidationError(""); }} className={input}/></label>
+        <label className="flex max-w-sm flex-col gap-2 text-sm font-medium">Appointment date<input type="date" required min={todayInSalon()} value={date} onChange={(event) => { const nextDate = event.target.value; setDate(nextDate); setTime(""); setTimes([]); setAvailabilityLoading(Boolean(nextDate && itemsReady)); setAvailabilityMessage(nextDate ? "Checking available times…" : "Choose a date to see available times."); setValidationError(""); }} className={input}/></label>
         <fieldset className="mt-5" aria-busy={availabilityLoading}><legend className="mb-3 text-sm font-medium">Available times</legend>{availabilityLoading ? <p aria-live="polite" className="text-sm text-ink/60">Checking available times…</p> : times.length ? <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">{times.map((slot) => <label key={slot} className={cn("flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-gold focus-within:ring-offset-2", time === slot ? "border-olive bg-olive text-white" : "border-taupe bg-white hover:border-gold hover:bg-sand/60")}><input type="radio" name="available-time" value={slot} required checked={time === slot} onChange={() => { setTime(slot); setValidationError(""); }} className="sr-only"/><span>{slot}</span></label>)}</div> : <p aria-live="polite" className="text-sm text-ink/65">{date ? availabilityMessage : "Choose a date to see available times."}</p>}</fieldset>
         <p className="mt-3 text-xs text-ink/50">Appointment times use {businessProfile.timezone}.</p>
       </section>
@@ -188,8 +187,7 @@ export default function BookingForm() {
       {lines.flatMap(({ entry, item }) => (item?.extras ?? []).filter((extra) => entry.extras[extra.key] > 0).map((extra) => <div key={`${lineKey(entry)}:${extra.key}`} className="flex justify-between gap-3 border-b border-line py-2 text-xs"><span>{extra.name} · {entry.extras[extra.key]} {methodLabel(extra).replace("per ", "")}</span><b>R{extra.unitPrice * entry.extras[extra.key]}</b></div>))}
       <div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Booking total</span><b>{total == null ? "Price to be confirmed" : `R${total}`}</b></div>
       <div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Requested time</span><b className="text-right">{date && time ? `${date} · ${time}` : "Choose a date and time"}</b></div>
-      <button type="submit" disabled={busy || !cart.length || !date || !time || !times.includes(time) || !allDurationsSet} className={cn(buttonStyles(), "mt-5 w-full disabled:opacity-50")}>{busy ? "Sending request…" : "Submit booking request"}</button>
-      {!allDurationsSet && lines.length > 0 && <p className="mt-3 text-xs leading-5 text-rose">The appointment length must be set before available times can be offered.</p>}
+      <button type="submit" disabled={busy || !cart.length || !itemsReady || !date || !time || !times.includes(time)} className={cn(buttonStyles(), "mt-5 w-full disabled:opacity-50")}>{busy ? "Sending request…" : "Submit booking request"}</button>
       <p className="mt-4 text-xs leading-relaxed text-ink/65">The studio will review your request and contact you about approval. Your appointment is not confirmed until approved.</p>
     </aside>
   </form>;

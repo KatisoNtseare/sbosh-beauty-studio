@@ -8,7 +8,7 @@ import { toast } from "react-toastify";
 import { addCartEntry } from "@/lib/cart";
 
 type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN" };
-type CatalogueItem = { _id: string; name: string; description: string; image: string; category: string; price?: number; priceConfirmed: boolean; durationMinutes?: number; isPackage?: boolean; serviceIds?: string[]; components?: { name: string }[]; extras?: Extra[] };
+type CatalogueItem = { _id: string; name: string; description: string; image: string; category: string; price?: number; priceConfirmed: boolean; isPackage?: boolean; serviceIds?: string[]; components?: { name: string }[]; extras?: Extra[] };
 const categories = ["Acrylic Nail Sets", "Gel Nail Sets", "Pedicures", "Nail Care", "Additional Services", "Combination Packages"];
 const formatPrice = (item: CatalogueItem) => item.priceConfirmed && typeof item.price === "number" ? `R${item.price}` : "Price to be confirmed";
 
@@ -21,15 +21,13 @@ function ServiceImage({ item }: { item: CatalogueItem }) {
 }
 
 function ItemCard({ item, onBook }: { item: CatalogueItem; onBook: (item: CatalogueItem) => void }) {
-  const bookable = Number.isInteger(item.durationMinutes) && Number(item.durationMinutes) > 0;
   return <article className="group overflow-hidden border border-line bg-cream transition-colors hover:border-olive/60">
     <ServiceImage item={item}/>
     <div className="p-5 md:p-6">
       <div className="flex items-start justify-between gap-3"><h3 className="font-display text-3xl font-medium leading-none">{item.name}</h3><span className="shrink-0 text-sm font-semibold text-olive">{formatPrice(item)}</span></div>
       <p className="mt-3 min-h-10 text-sm leading-6 text-ink/68">{item.description || "A considered treatment from the studio."}</p>
       {item.components?.length ? <p className="mt-3 border-l border-rose pl-3 text-xs leading-5 text-ink/65">Includes {item.components.map((component) => component.name).join(" + ")}</p> : null}
-      <div className="mt-4 flex min-h-9 items-center justify-between gap-3 border-t border-line pt-3 text-xs text-ink/60">
-        <span>{bookable ? `${item.durationMinutes} minutes` : "Booking length not set"}</span>
+      <div className="mt-4 flex min-h-9 items-center justify-end gap-3 border-t border-line pt-3 text-xs text-ink/60">
         <button type="button" onClick={() => onBook(item)} className="font-semibold text-olive underline decoration-olive/40 underline-offset-4">Book</button>
       </div>
     </div>

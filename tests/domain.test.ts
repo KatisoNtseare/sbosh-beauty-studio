@@ -7,7 +7,8 @@ let schedule: Record<string, unknown>;
 let reservations: { reservations: { bookingId: string; start: number; end: number }[] } | null;
 vi.mock("@/models/Availability", () => ({ default: { findOne: vi.fn(() => ({ lean: async () => schedule })) } }));
 vi.mock("@/models/ReservationDay", () => ({ default: { findOne: vi.fn(() => ({ lean: async () => reservations })) } }));
-import { slotsFor, todayInSalon, validDate } from "@/lib/availability";
+import { reservationWindowForItems, reservationWindowMinutes, slotsFor, todayInSalon, validDate } from "@/lib/availability";
+import { defaultWeeklySchedule, isDefaultWeeklySchedule } from "@/lib/default-availability";
 
 const nextDate = (offset = 2) => {
   const date = new Date(todayInSalon() + "T12:00:00Z");
@@ -67,6 +68,28 @@ describe("appointment availability", () => {
     const date = nextDate();
     schedule = { weekly: [{ weekday: new Date(date + "T12:00:00Z").getUTCDay(), enabled: true, periods: [{ open: "09:00", close: "12:00" }, { open: "13:00", close: "18:00" }] }], exceptions: [], blockedDates: [], blockedPeriods: [{ date, start: "15:00", end: "16:00" }], breaks: [{ start: "12:00", end: "13:00" }], slotMinutes: 60, bufferMinutes: 0, timeZone: "Africa/Johannesburg" };
     reservations = { reservations: [{ bookingId: "existing-booking", start: 600, end: 660 }] };
+  });
+  it("defines all seven business days from 09:00 to 17:30 and falls back to the configured slot window", async () => {
+    expect(isDefaultWeeklySchedule(defaultWeeklySchedule)).toBe(true);
+    expect(defaultWeeklySchedule).toHaveLength(7);
+    expect(reservationWindowMinutes(undefined, 30)).toBe(30);
+    expect(reservationWindowMinutes(45, 30)).toBe(45);
+    expect(reservationWindowMinutes(undefined, undefined)).toBeUndefined();
+    expect(reservationWindowForItems([{ durationMinutes: 45 }, {}], 30)).toBe(75);
+    expect(reservationWindowForItems([{}, {}], 30)).toBe(60);
+    expect(reservationWindowForItems([{ reservationDurationParts: [60, undefined] }], 30)).toBe(90);
+
+    const date = nextDate();
+    const weekday = new Date(date + "T12:00:00Z").getUTCDay();
+    schedule = { weekly: defaultWeeklySchedule, blockedDates: [], exceptions: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0 };
+    reservations = null;
+    expect(await slotsFor(date, reservationWindowMinutes(undefined, 30)!)).toEqual(
+      Array.from({ length: 17 }, (_, index) => {
+        const start = 9 * 60 + index * 30;
+        return `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;
+      }),
+    );
+    expect(defaultWeeklySchedule.find((day) => day.weekday === weekday)?.periods[0]).toEqual({ open: "09:00", close: "17:30" });
   });
   it("uses trusted duration with multiple periods, breaks, blocked intervals and reservations", async () => {
     expect(await slotsFor(nextDate(), 60)).toEqual(["09:00", "11:00", "13:00", "14:00", "16:00", "17:00"]);

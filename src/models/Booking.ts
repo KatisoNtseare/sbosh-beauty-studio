@@ -36,6 +36,7 @@ const bookingSchema = new Schema({
   reference: { type: String, required: true, unique: true, index: true },
   customer: { name: { type: String, required: true }, phone: { type: String, default: "" }, email: { type: String, lowercase: true, trim: true } },
   service: { type: serviceSnapshotSchema, required: true },
+  reservationDurationMinutes: { type: Number, min: 1, max: 720 },
   items: { type: [bookingItemSnapshotSchema], default: [] },
   extras: { type: [extraLineSchema], default: [] },
   totalPrice: { type: Number, min: 0 },

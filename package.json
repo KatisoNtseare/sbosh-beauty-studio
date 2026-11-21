@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed:admin": "tsx scripts/seed-admin.ts",
+    "seed:availability": "tsx scripts/seed-availability.ts",
     "seed:catalogue": "tsx scripts/seed-catalogue.ts",
     "test": "vitest run",
     "test:db:init": "tsx scripts/init-test-replica.ts",
@@ -19,7 +20,6 @@
     "clsx": "^2.1.1",
     "mongoose": "^9.12.3",
     "next": "16.4.6",
-    "nodemailer": "^10.6.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-icons": "^5.7.0",
@@ -29,7 +29,6 @@
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
-    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

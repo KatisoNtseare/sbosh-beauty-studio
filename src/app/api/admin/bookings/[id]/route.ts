@@ -1,12 +1,11 @@
 import mongoose from "mongoose";
 import { connectDb } from "@/lib/mongodb";
 import { validAdminSession } from "@/lib/admin-auth";
-import { slotsFor, validDate, minute } from "@/lib/availability";
+import { reservationWindowMinutes, slotsFor, validDate, minute } from "@/lib/availability";
 import Booking from "@/models/Booking";
 import Availability from "@/models/Availability";
 import { adminIdentity } from "@/lib/admin-auth";
 import { canTransitionBooking } from "@/lib/domain";
-import { sendNotification } from "@/lib/email";
 import { ensureReservationDay, releaseInterval, reserveInterval, transactionUnsupported } from "@/lib/reservations";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -35,17 +34,6 @@ export async function PATCH(request: Request, { params }: Ctx) {
     const admin = await adminIdentity();
     if (!admin) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const now = new Date();
-    if (body.action === "retry-email") {
-      const notificationId = String(body.notificationId ?? "");
-      if (!mongoose.isValidObjectId(notificationId)) return Response.json({ error: "Invalid email notification." }, { status: 400 });
-      const notification = booking.notifications.find((item: (typeof booking.notifications)[number]) => String(item._id) === notificationId);
-      if (notification?.type !== "ADMIN_NEW_BOOKING") return Response.json({ error: "Customer notifications are handled directly by the studio." }, { status: 409 });
-      const staleSending = notification?.status === "SENDING" && notification.attemptedAt && notification.attemptedAt.getTime() < Date.now() - 5 * 60_000;
-      if (!notification || !(notification.status === "FAILED" || notification.status === "PENDING" || staleSending)) return Response.json({ error: "This email is already being delivered or is not eligible for retry." }, { status: 409 });
-      const result = await sendNotification(id, notificationId);
-      if (result.skipped) return Response.json({ error: "This email is already being delivered or is not eligible for retry." }, { status: 409 });
-      return Response.json({ booking: await Booking.findById(id).lean(), emailStatus: result.sent ? "SENT" : "FAILED", warning: result.sent ? undefined : "Email could not be sent. Check SMTP settings and retry." });
-    }
     if (body.action === "reject") {
       if (!canTransitionBooking(booking.status, "reject")) return Response.json({ error: "Only pending requests can be rejected." }, { status: 409 });
       const reason = String(body.reason ?? "").trim().slice(0, 500);
@@ -88,11 +76,14 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if (body.action === "reschedule") {
       if (!canTransitionBooking(booking.status, "reschedule") || !booking.confirmedDate || !booking.confirmedStart) return Response.json({ error: "Only approved appointments can be rescheduled." }, { status: 409 });
       const date = String(body.date ?? ""); const startTime = String(body.time ?? "");
-      const duration = booking.service.durationMinutes; if (typeof duration !== "number" || !Number.isInteger(duration) || duration <= 0) return Response.json({ error: "This booking has no configured appointment length. Update the service duration before rescheduling." }, { status: 409 }); const start = minute(startTime); const end = start + duration;
+      const settings = await Availability.findOne().select("slotMinutes bufferMinutes").lean();
+      const duration = reservationWindowMinutes(booking.reservationDurationMinutes ?? booking.service.durationMinutes, settings?.slotMinutes);
+      if (!duration) return Response.json({ error: "Appointment availability is not configured." }, { status: 503 });
+      const start = minute(startTime); const end = start + duration;
 
       if (!validDate(date) || start < 0 || end >= 1440 || !(await slotsFor(date, duration, String(booking._id))).includes(startTime)) return Response.json({ error: "That time is outside configured availability." }, { status: 409 });
       if (date === booking.confirmedDate && startTime === booking.confirmedStart) return Response.json({ booking: booking.toObject() });
-      const settings = await Availability.findOne().lean(); const buffer = Number(settings?.bufferMinutes || 0);
+      const buffer = Number(settings?.bufferMinutes || 0);
       const oldDate = booking.confirmedDate; const oldStart = minute(booking.confirmedStart); const oldEnd = minute(booking.confirmedEnd || "") || oldStart + duration;
       const endTime = `${String(Math.floor(end / 60)).padStart(2,"0")}:${String(end % 60).padStart(2,"0")}`;
       await ensureReservationDay(date);
@@ -113,7 +104,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if (body.action !== "approve") return Response.json({ error: "Unsupported action." }, { status: 400 });
     if (!canTransitionBooking(booking.status, "approve")) return Response.json({ error: "Only pending requests can be approved." }, { status: 409 });
     const date = String(body.date ?? booking.preferredDate); const startTime = String(body.time ?? booking.preferredTime);
-    const duration = booking.service.durationMinutes; if (typeof duration !== "number" || !Number.isInteger(duration) || duration <= 0) return Response.json({ error: "This booking has no configured appointment length. Update the service duration before approving it." }, { status: 409 }); const start = minute(startTime); const end = start + duration;
+    const settings = await Availability.findOne().select("slotMinutes bufferMinutes").lean();
+    const duration = reservationWindowMinutes(booking.reservationDurationMinutes ?? booking.service.durationMinutes, settings?.slotMinutes);
+    if (!duration) return Response.json({ error: "Appointment availability is not configured." }, { status: 503 });
+    const start = minute(startTime); const end = start + duration;
     let priceUpdate: Record<string, unknown> = {};
     let priceHistoryNote = "";
     if (booking.priceNeedsConfirmation) {
@@ -125,7 +119,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
     const endTime = `${String(Math.floor(end / 60)).padStart(2,"0")}:${String(end % 60).padStart(2,"0")}`;
     if (!validDate(date) || start < 0 || end >= 1440 || !(await slotsFor(date, duration, String(booking._id))).includes(startTime)) return Response.json({ error: "That time is outside configured availability." }, { status: 409 });
-    const settings = await Availability.findOne().lean(); const buffer = Number(settings?.bufferMinutes || 0);
+    const buffer = Number(settings?.bufferMinutes || 0);
     await ensureReservationDay(date);
     const result = await runTransaction(async (session) => {
       if (!(await reserveInterval(date, booking._id, start, end, buffer, booking._id, session))) throw new StateConflict();

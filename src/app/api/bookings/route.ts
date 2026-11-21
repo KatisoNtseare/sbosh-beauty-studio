@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { randomBytes } from "node:crypto";
 import { connectDb } from "@/lib/mongodb";
-import { slotsFor, validCalendarDate, validDate, minute } from "@/lib/availability";
+import { reservationWindowForItems, reservationWindowMinutes, slotsFor, validCalendarDate, validDate, minute } from "@/lib/availability";
 import Booking from "@/models/Booking";
 import Availability from "@/models/Availability";
 import { validateCustomerFields } from "@/lib/domain";
@@ -10,7 +10,6 @@ import { bookingSubmissionFingerprint, sameBookingSubmission, type BookingLineSu
 import { requestIp, withinRateLimit } from "@/lib/rate-limit";
 import { nextBookingReference } from "@/lib/booking-reference";
 import { releaseInterval, reserveInterval } from "@/lib/reservations";
-import { adminNotificationRecipient, sendNotification } from "@/lib/email";
 
 function parseItems(body: Record<string, unknown>): BookingLineSubmission[] | null {
   const source = body.items === undefined
@@ -70,15 +69,17 @@ export async function POST(request: Request) {
     let quote;
     try { quote = await loadCatalogueQuote({ items }); }
     catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Choose available services." }, { status: 400 }); }
-    if (!quote.durationMinutes) return Response.json({ error: "Booking is unavailable until appointment lengths are configured for every selected service." }, { status: 409 });
-    if (!(await slotsFor(date, quote.durationMinutes)).includes(time)) return Response.json({ error: "That appointment time is no longer available. Choose another time." }, { status: 409 });
+    const settings = await Availability.findOne().select("slotMinutes bufferMinutes").lean();
+    const reservationDuration = reservationWindowForItems(quote.items, settings?.slotMinutes)
+      ?? reservationWindowMinutes(quote.durationMinutes, settings?.slotMinutes);
+    if (!reservationDuration) return Response.json({ error: "Appointment availability is not configured. Please try again later." }, { status: 503 });
+    if (!(await slotsFor(date, reservationDuration)).includes(time)) return Response.json({ error: "That appointment time is no longer available. Choose another time." }, { status: 409 });
 
     reservationId = new mongoose.Types.ObjectId();
     reservationDate = date;
-    const settings = await Availability.findOne().select("bufferMinutes").lean();
     const buffer = Number(settings?.bufferMinutes || 0);
     const start = minute(time);
-    if (!(await reserveInterval(date, reservationId, start, start + quote.durationMinutes, buffer))) {
+    if (!(await reserveInterval(date, reservationId, start, start + reservationDuration, buffer))) {
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const concurrent = await Booking.findOne({ idempotencyKey }).select("+idempotencyFingerprint").lean();
         if (concurrent) {
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
       reference,
       customer,
       service: quote.service,
+      reservationDurationMinutes: reservationDuration,
       items: quote.items,
       extras: quote.extras,
       totalPrice: quote.totalPrice,
@@ -104,16 +106,12 @@ export async function POST(request: Request) {
       preferredTime: time,
       idempotencyKey,
       idempotencyFingerprint: fingerprint,
-      notifications: [{ type: "ADMIN_NEW_BOOKING", recipient: adminNotificationRecipient(), subject: "New booking request · " + reference, status: "PENDING", attemptCount: 0 }],
       history: [{ status: "PENDING", at: new Date(), by: "customer" }],
     });
     bookingSaved = true;
-    const notice = booking.notifications[0];
-    const notificationResult = await sendNotification(String(booking._id), String(notice._id));
     return Response.json({
       reference: booking.reference,
       status: booking.status,
-      emailStatus: notificationResult.sent ? "SENT" : "FAILED",
       totalPrice: booking.totalPrice,
       priceNeedsConfirmation: booking.priceNeedsConfirmation,
       service: booking.service,

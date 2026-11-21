@@ -25,8 +25,8 @@ export function buildServiceQuote(service: PricedService, selections: ExtraSelec
   const extras = calculateExtraLines(service.extras ?? [], selections).map((line) => ({ ...line, componentId: String(service._id), componentName: service.name }));
   const basePrice = service.priceConfirmed && typeof service.price === "number" ? service.price : null;
   const totalPrice = calculateCatalogueTotal(basePrice, extras.map((line) => line.subtotal));
-  const durationMinutes = service.durationConfirmed === true && typeof service.durationMinutes === "number"
-    ? service.durationMinutes + extras.reduce((sum, line) => sum + line.durationMinutes * line.quantity, 0)
+  const durationMinutes = service.durationConfirmed === true && Number.isInteger(service.durationMinutes) && Number(service.durationMinutes) > 0
+    ? Number(service.durationMinutes)
     : undefined;
   return {
     service: {
@@ -47,6 +47,7 @@ export function buildServiceQuote(service: PricedService, selections: ExtraSelec
     totalPrice,
     priceNeedsConfirmation: totalPrice === null,
     durationMinutes,
+    reservationDurationParts: [durationMinutes],
   };
 }
 
@@ -84,7 +85,7 @@ export async function buildPackageQuote(servicePackage: {
   const basePrice = prices.some((price) => price === null) ? null : prices.reduce<number>((sum, price) => sum + (price ?? 0), 0);
   const totalPrice = calculateCatalogueTotal(basePrice, selected.map((line) => line.subtotal));
   const durationMinutes = components.every((component) => component.durationConfirmed === true && Number.isInteger(component.durationMinutes) && Number(component.durationMinutes) > 0)
-    ? components.reduce((sum, component) => sum + Number(component.durationMinutes), Number(servicePackage.additionalDurationMinutes ?? 0)) + selected.reduce((sum, line) => sum + line.durationMinutes * line.quantity, 0)
+    ? components.reduce((sum, component) => sum + Number(component.durationMinutes), 0)
     : undefined;
   return {
     service: {
@@ -104,6 +105,7 @@ export async function buildPackageQuote(servicePackage: {
     totalPrice,
     priceNeedsConfirmation: totalPrice === null,
     durationMinutes,
+    reservationDurationParts: components.map((component) => component.durationConfirmed === true && Number.isInteger(component.durationMinutes) && Number(component.durationMinutes) > 0 ? Number(component.durationMinutes) : undefined),
   };
 }
 
@@ -139,6 +141,7 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
         price: quote.service.price,
         priceConfirmed: quote.service.priceConfirmed,
         durationMinutes: quote.durationMinutes,
+        reservationDurationParts: quote.reservationDurationParts,
       }],
     };
   }
@@ -165,6 +168,7 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
     price: quote.service.price,
     priceConfirmed: quote.service.priceConfirmed,
     durationMinutes: quote.durationMinutes,
+    reservationDurationParts: quote.reservationDurationParts,
   }));
   if (quotes.length === 1) return { ...quotes[0], items };
   return {

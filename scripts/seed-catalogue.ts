@@ -38,7 +38,7 @@ async function main() {
       const result = await ServicePackage.updateOne({ name: item.name }, { $setOnInsert: { name: item.name, serviceIds: serviceIds as mongoose.Types.ObjectId[], description: "A paired manicure and pedicure, priced at the combined service total.", active: true, displayOrder: index * 10, additionalDurationMinutes: 0, image: "/images/hero.jpg" } }, { upsert: true });
       createdPackages += result.upsertedCount;
     }
-    console.log(`Catalogue seed complete: ${insertedServices} service(s) added, ${activatedTemplates} inactive setup template(s) configured, and ${createdPackages} package(s) added. Other existing catalogue records were left unchanged. Review and confirm service durations in /admin before opening bookings.`);
+    console.log(`Catalogue seed complete: ${insertedServices} service(s) added, ${activatedTemplates} inactive setup template(s) configured, and ${createdPackages} package(s) added. Existing catalogue records were left unchanged. No service-specific durations were invented; booking availability uses the configured slot interval unless a duration was already confirmed.`);
   } finally { await mongoose.disconnect(); }
 }
 
