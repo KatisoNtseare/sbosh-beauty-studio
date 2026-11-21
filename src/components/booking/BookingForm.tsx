@@ -15,13 +15,13 @@ type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" 
 type CatalogueItem = { _id: string; name: string; description: string; fullDescription?: string; image: string; category: string; price?: number; priceConfirmed: boolean; isPackage?: boolean; components?: { name: string }[]; extras?: Extra[] };
 type BookingResult = { reference: string; status: string; totalPrice: number | null; priceNeedsConfirmation: boolean; customerEmailSent: boolean; preferredDate: string; preferredTime: string; items: { name: string; price?: number; priceConfirmed: boolean }[]; extras: { name: string; quantity: number; unitPrice: number; subtotal: number }[] };
 type CartLine = { entry: CartEntry; item?: CatalogueItem };
-const input = "h-12 w-full rounded-xl border border-taupe bg-white px-3.5 text-ink";
+const input = "h-12 w-full rounded-xl border border-pink-blush bg-white px-3.5 text-ink focus:border-pink-primary focus:outline-none focus:ring-2 focus:ring-pink-primary/20";
 const lineKey = (line: CartEntry) => `${line.kind}:${line.id}`;
 const methodLabel = (extra: Extra) => extra.method === "PER_NAIL" ? "per nail" : "per design";
 
 function BookingImage({ item }: { item: CatalogueItem }) {
   const [src, setSrc] = useState(item.image || "/images/hero.jpg");
-  return <div className="relative aspect-[4/3] overflow-hidden bg-sand"><Image src={src} alt={item.name} fill sizes="(max-width: 640px) 100vw, 190px" className="object-cover" onError={() => setSrc("/images/hero.jpg")}/></div>;
+  return <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-sand"><Image src={src} alt={item.name} fill sizes="(max-width: 640px) 100vw, 190px" className="object-cover" onError={() => setSrc("/images/hero.jpg")}/></div>;
 }
 
 export default function BookingForm() {
@@ -135,8 +135,9 @@ export default function BookingForm() {
     } finally { setBusy(false); }
   }
 
-  if (success) return <section className="mx-auto my-8 max-w-3xl border border-olive/30 bg-white p-6 md:p-10" aria-live="polite">
-    <p className="text-sm font-semibold text-olive">Request received</p><h2 className="mt-2 font-display text-5xl">Your booking request has been submitted successfully!</h2>
+  if (success) return <section className="mx-auto my-8 max-w-3xl overflow-hidden rounded-3xl border border-pink-primary/20 bg-white shadow-xl shadow-plum/5" aria-live="polite">
+    <div className="border-b border-pink-blush bg-pale-pink p-6 md:p-10"><p className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-pink-primary"><span aria-hidden="true" className="size-2 rounded-full bg-pink-hot"/>Request received</p><h2 className="mt-4 font-display text-4xl font-semibold leading-tight text-plum md:text-5xl">Your booking request is on its way.</h2></div>
+    <div className="p-6 md:p-10">
     <p className="mt-4 text-sm leading-6 text-ink/70">{success.customerEmailSent ? "We emailed you a receipt and will email you again when the studio approves or declines your request." : "Your request is saved, but we could not send the receipt email. Keep your reference and contact the studio if you need an update."} Your appointment is not confirmed yet.</p>
     <dl className="mt-6 divide-y divide-line border-y border-line text-sm">
       <div className="flex justify-between gap-4 py-3"><dt>Reference</dt><dd className="font-semibold">{success.reference}</dd></div>
@@ -146,18 +147,26 @@ export default function BookingForm() {
       <div className="flex justify-between gap-4 py-3"><dt>Status</dt><dd>{success.status}</dd></div>
       <div className="flex justify-between gap-4 py-3"><dt>Total</dt><dd>{success.priceNeedsConfirmation || success.totalPrice == null ? "Price to be confirmed with you" : `R${success.totalPrice}`}</dd></div>
     </dl><Link href="/services" className={cn(buttonStyles(), "mt-6 inline-flex")}>Browse services</Link>
+    </div>
   </section>;
 
   if (!itemsLoaded) return <p className="py-10 text-sm text-ink/60">{serviceError || "Preparing your booking cart…"}</p>;
 
-  return <form onSubmit={submit} className="grid items-start gap-8 pb-16 pt-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-    <div className="flex min-w-0 flex-col gap-8">
-      <section className="border-b border-line pb-8">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="mb-2 text-xs font-semibold text-olive">Your selection</p><h2 className="font-display text-4xl">Booking cart</h2></div><Link href="/services#services" className="text-sm font-semibold text-olive underline">Add another service</Link></div>
-        {!lines.length ? <p className="border border-line bg-white p-6 text-sm text-ink/65">Your cart is empty. Choose a service to begin.</p> : <div className="divide-y divide-line border-y border-line">
-          {lines.map(({ entry, item }) => <article key={lineKey(entry)} className="grid gap-5 py-5 sm:grid-cols-[150px_minmax(0,1fr)]">
-            {item ? <BookingImage item={item}/> : <div className="grid aspect-[4/3] place-items-center bg-sand text-xs text-ink/60">Unavailable item</div>}
-            <div className="min-w-0"><div className="flex items-start justify-between gap-3"><div><h3 className="font-display text-3xl">{item?.name ?? "This service is no longer available"}</h3><p className="mt-1 text-xs text-ink/55">{entry.kind === "package" ? "Combination package" : item?.category}</p></div><button type="button" onClick={() => { updateCart(cart.filter((line) => lineKey(line) !== lineKey(entry))); toast.info("Item removed from your booking."); }} className="text-xs text-ink/65 underline">Remove</button></div>
+  const currentStep = !cart.length ? 1 : !date || !time ? 2 : 3;
+  const progressSteps = ["Choose services", "Choose a time", "Your details"];
+
+  return <form onSubmit={submit} className="pb-16 pt-6">
+    <ol aria-label="Booking progress" className="mb-7 grid grid-cols-3 gap-2">
+      {progressSteps.map((step, index) => <li key={step} aria-current={currentStep === index + 1 ? "step" : undefined} className={cn("flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold sm:gap-3 sm:px-4", currentStep === index + 1 ? "border-pink-primary bg-pink-primary text-white" : index + 1 < currentStep ? "border-pink-primary/20 bg-pink-blush text-plum" : "border-line bg-white text-ink/60")}><span className={cn("grid size-7 shrink-0 place-items-center rounded-full", currentStep === index + 1 ? "bg-white/20" : index + 1 < currentStep ? "bg-pink-primary text-white" : "bg-pale-pink text-plum")}>{index + 1}</span><span className="leading-4">{step}</span></li>)}
+    </ol>
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:gap-8">
+    <div className="flex min-w-0 flex-col gap-5">
+      <section className="rounded-3xl border border-pink-blush bg-white p-5 shadow-sm sm:p-6 md:p-7">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="mb-2 text-xs font-semibold text-pink-primary">Step 1 · Your selection</p><h2 className="font-display text-4xl font-semibold text-plum">Booking cart</h2></div><Link href="/services#services" className="text-sm font-semibold text-pink-primary underline decoration-pink-primary/40 underline-offset-4">Add a service</Link></div>
+        {!lines.length ? <p className="rounded-2xl border border-dashed border-pink-primary/35 bg-pale-pink p-6 text-sm text-plum/75">Your cart is empty. Choose a service to begin.</p> : <div className="space-y-3">
+          {lines.map(({ entry, item }) => <article key={lineKey(entry)} className="grid gap-4 rounded-2xl border border-pink-blush bg-pale-pink/60 p-4 sm:grid-cols-[130px_minmax(0,1fr)]">
+            {item ? <BookingImage item={item}/> : <div className="grid aspect-[4/3] place-items-center rounded-2xl bg-sand text-xs text-ink/60">Unavailable item</div>}
+            <div className="min-w-0"><div className="flex items-start justify-between gap-3"><div><h3 className="font-display text-2xl font-semibold text-plum">{item?.name ?? "This service is no longer available"}</h3><p className="mt-1 text-xs text-ink/60">{entry.kind === "package" ? "Combination package" : item?.category}</p></div><button type="button" onClick={() => { updateCart(cart.filter((line) => lineKey(line) !== lineKey(entry))); toast.info("Item removed from your booking."); }} className="min-h-9 px-2 text-xs font-semibold text-pink-primary underline underline-offset-4">Remove</button></div>
               {item?.description && <p className="mt-2 text-sm leading-6 text-ink/65">{item.description}</p>}{item?.components?.length ? <p className="mt-2 text-xs text-ink/60">Includes {item.components.map((component) => component.name).join(" + ")}</p> : null}
               <p className="mt-3 text-sm font-semibold">{item?.priceConfirmed && item.price != null ? `R${item.price}` : "Price to be confirmed"}</p>
               {item?.extras?.length ? <div className="mt-4 border-t border-line pt-3"><h4 className="text-sm font-semibold">Optional extras</h4><div className="mt-2 divide-y divide-line">{item.extras.map((extra) => {
@@ -169,13 +178,13 @@ export default function BookingForm() {
         </div>}
       </section>
 
-      <section className="border-b border-line pb-8"><p className="mb-2 text-xs font-semibold text-olive">Choose your appointment</p><h2 className="mb-5 font-display text-4xl">Date and time</h2>
+      <section className="rounded-3xl border border-pink-blush bg-white p-5 shadow-sm sm:p-6 md:p-7"><p className="mb-2 text-xs font-semibold text-pink-primary">Step 2 · Choose your appointment</p><h2 className="mb-5 font-display text-4xl font-semibold text-plum">Date and time</h2>
         <label className="flex max-w-sm flex-col gap-2 text-sm font-medium">Appointment date<input type="date" required min={todayInSalon()} value={date} onChange={(event) => { const nextDate = event.target.value; setDate(nextDate); setTime(""); setTimes([]); setAvailabilityLoading(Boolean(nextDate && itemsReady)); setAvailabilityMessage(nextDate ? "Checking available times…" : "Choose a date to see available times."); setValidationError(""); }} className={input}/></label>
-        <fieldset className="mt-5" aria-busy={availabilityLoading}><legend className="mb-3 text-sm font-medium">Available times</legend>{availabilityLoading ? <p aria-live="polite" className="text-sm text-ink/60">Checking available times…</p> : times.length ? <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">{times.map((slot) => <label key={slot} className={cn("flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-gold focus-within:ring-offset-2", time === slot ? "border-olive bg-olive text-white" : "border-taupe bg-white hover:border-gold hover:bg-sand/60")}><input type="radio" name="available-time" value={slot} required checked={time === slot} onChange={() => { setTime(slot); setValidationError(""); }} className="sr-only"/><span>{slot}</span></label>)}</div> : <p aria-live="polite" className="text-sm text-ink/65">{date ? availabilityMessage : "Choose a date to see available times."}</p>}</fieldset>
+        <fieldset className="mt-5" aria-busy={availabilityLoading}><legend className="mb-3 text-sm font-semibold text-plum">Available times</legend>{availabilityLoading ? <p aria-live="polite" className="rounded-xl bg-pale-pink px-4 py-3 text-sm text-plum/75">Checking available times…</p> : times.length ? <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">{times.map((slot) => <label key={slot} className={cn("flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-3 text-sm font-semibold transition-colors focus-within:ring-2 focus-within:ring-pink-primary focus-within:ring-offset-2", time === slot ? "border-pink-primary bg-pink-primary text-white shadow-sm" : "border-pink-blush bg-white text-plum hover:border-pink-primary hover:bg-pink-blush")}><input type="radio" name="available-time" value={slot} required checked={time === slot} onChange={() => { setTime(slot); setValidationError(""); }} className="sr-only"/><span>{slot}</span></label>)}</div> : <p aria-live="polite" className="rounded-xl bg-pale-pink px-4 py-3 text-sm text-plum/75">{date ? availabilityMessage : "Choose a date to see available times."}</p>}</fieldset>
         <p className="mt-3 text-xs text-ink/50">Appointment times use {businessProfile.timezone}.</p>
       </section>
 
-      <section className="pb-4"><p className="mb-2 text-xs font-semibold text-olive">Your details</p><h2 className="mb-5 font-display text-4xl">Who should we contact?</h2><div className="grid gap-5 sm:grid-cols-2">
+      <section className="rounded-3xl border border-pink-blush bg-white p-5 shadow-sm sm:p-6 md:p-7"><p className="mb-2 text-xs font-semibold text-pink-primary">Step 3 · Your details</p><h2 className="mb-5 font-display text-4xl font-semibold text-plum">Who should we contact?</h2><div className="grid gap-5 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm font-medium">Full name<input name="name" autoComplete="name" minLength={2} maxLength={120} required className={input}/></label>
         <label className="flex flex-col gap-1.5 text-sm font-medium">Contact number<input name="phone" type="tel" autoComplete="tel" minLength={7} maxLength={30} pattern="[+0-9 ()-]{7,30}" placeholder="e.g. 081 234 5678" required className={input}/></label>
         <label className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">Email address<input name="email" type="email" autoComplete="email" maxLength={254} required className={input}/><span className="text-xs font-normal text-ink/55">We’ll email your request receipt and the studio’s decision to this address.</span></label>
@@ -183,13 +192,13 @@ export default function BookingForm() {
       </div>{validationError && <p role="alert" className="mt-4 border-l-2 border-rose pl-3 text-sm text-rose">{validationError}</p>}</section>
     </div>
 
-    <aside className="border border-line bg-sand/70 p-6 md:p-7 lg:sticky lg:top-24"><h2 className="font-display text-4xl">Request summary</h2>
-      {lines.map(({ entry, item }) => <div key={lineKey(entry)} className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>{item?.name ?? "Unavailable item"}</span><b className="text-right">{item?.priceConfirmed && item.price != null ? `R${item.price}` : "To be confirmed"}</b></div>)}
-      {lines.flatMap(({ entry, item }) => (item?.extras ?? []).filter((extra) => entry.extras[extra.key] > 0).map((extra) => <div key={`${lineKey(entry)}:${extra.key}`} className="flex justify-between gap-3 border-b border-line py-2 text-xs"><span>{extra.name} · {entry.extras[extra.key]} {methodLabel(extra).replace("per ", "")}</span><b>R{extra.unitPrice * entry.extras[extra.key]}</b></div>))}
+    <aside className="rounded-3xl border border-pink-primary/20 bg-pink-blush p-5 shadow-sm sm:p-6 lg:sticky lg:top-24"><p className="mb-2 text-xs font-semibold text-pink-primary">Your booking</p><h2 className="font-display text-3xl font-semibold text-plum">Request summary</h2>
+      {lines.map(({ entry, item }) => <div key={lineKey(entry)} className="flex justify-between gap-3 border-b border-pink-primary/15 py-3 text-sm"><span>{item?.name ?? "Unavailable item"}</span><b className="text-right text-plum">{item?.priceConfirmed && item.price != null ? `R${item.price}` : "To be confirmed"}</b></div>)}
+      {lines.flatMap(({ entry, item }) => (item?.extras ?? []).filter((extra) => entry.extras[extra.key] > 0).map((extra) => <div key={`${lineKey(entry)}:${extra.key}`} className="flex justify-between gap-3 border-b border-pink-primary/15 py-2 text-xs"><span>{extra.name} · {entry.extras[extra.key]} {methodLabel(extra).replace("per ", "")}</span><b>R{extra.unitPrice * entry.extras[extra.key]}</b></div>))}
       <div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Booking total</span><b>{total == null ? "Price to be confirmed" : `R${total}`}</b></div>
       <div className="flex justify-between gap-3 border-b border-line py-3 text-sm"><span>Requested time</span><b className="text-right">{date && time ? `${date} · ${time}` : "Choose a date and time"}</b></div>
       <button type="submit" disabled={busy || !cart.length || !itemsReady || !date || !time || !times.includes(time)} className={cn(buttonStyles(), "mt-5 w-full disabled:opacity-50")}>{busy ? "Sending request…" : "Submit booking request"}</button>
       <p className="mt-4 text-xs leading-relaxed text-ink/65">The studio will review your request and contact you about approval. Your appointment is not confirmed until approved.</p>
     </aside>
-  </form>;
+  </div></form>;
 }

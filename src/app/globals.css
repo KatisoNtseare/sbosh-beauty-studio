@@ -2,21 +2,31 @@
 @import "react-toastify/dist/ReactToastify.css";
 
 @theme inline {
-  --color-cream: #f7f4ed;
-  --color-sand: #eae5d9;
-  --color-line: #ddd6c8;
-  --color-ink: #2e2c27;
-  --color-gold: #71633f;
-  --color-gold-dark: #414c3e;
-  --color-olive: #52634f;
-  --color-rose: #c7887f;
-  --color-taupe: #c9c0b0;
+  --color-pink-primary: #b01862;
+  --color-pink-hot: #f72585;
+  --color-pink-blush: #fce7f3;
+  --color-pale-pink: #fff1f7;
+  --color-lavender: #ede9fe;
+  --color-plum: #581c4d;
+  --color-cream: #fff9fc;
+  --color-sand: #fce7f3;
+  --color-line: #f1c9dd;
+  --color-ink: #3a1f31;
+  --color-gold: #b01862;
+  --color-gold-dark: #581c4d;
+  --color-olive: #b01862;
+  --color-rose: #f72585;
+  --color-taupe: #e3bdd0;
   --font-display: var(--font-cormorant), serif;
   --font-sans: var(--font-montserrat), sans-serif;
 }
 
 * {
   box-sizing: border-box;
+}
+
+:root {
+  color-scheme: light;
 }
 
 html {
@@ -44,6 +54,23 @@ body {
 .Toastify__toast--success { border-color: var(--color-olive); }
 .Toastify__toast--error { border-color: var(--color-rose); }
 
+a,
+button,
+summary,
+label[for],
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]),
+label:has(input[type="file"]) {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -59,12 +86,12 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--color-olive);
+  outline: 2px solid var(--color-plum);
   outline-offset: 3px;
 }
 
 ::selection {
-  background: var(--color-olive);
+  background: var(--color-plum);
   color: var(--color-cream);
 }
 
@@ -77,161 +104,4 @@ textarea:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-.mood-tile {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-}
-
-.mood-shape,
-.mood-sun,
-.bloom-petal,
-.bloom-center,
-.vessel-neck,
-.vessel-body,
-.leaf-stem,
-.leaf-one,
-.leaf-two,
-.leaf-three {
-  position: absolute;
-}
-
-.mood-shape {
-  inset: 0;
-}
-
-.mood-sun {
-  left: 53%;
-  top: 13%;
-  width: 40%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-}
-
-.mood-arch::after {
-  position: absolute;
-  right: 13%;
-  bottom: -38%;
-  left: 13%;
-  height: 103%;
-  border: 1px solid rgba(46, 44, 39, 0.45);
-  border-radius: 48% 48% 0 0;
-  content: "";
-}
-
-.mood-arch::before {
-  position: absolute;
-  right: 23%;
-  bottom: -38%;
-  left: 23%;
-  height: 92%;
-  border-radius: 48% 48% 0 0;
-  background: #52634f;
-  content: "";
-}
-
-.mood-bloom .mood-sun {
-  left: 34%;
-  top: 22%;
-  width: 32%;
-}
-
-.bloom-petal {
-  left: 42%;
-  top: 26%;
-  width: 17%;
-  height: 31%;
-  border-radius: 55% 55% 45% 45%;
-  background: #8a6957;
-  transform-origin: 50% 78%;
-}
-
-.petal-a { transform: rotate(0deg) translateY(-28%); }
-.petal-b { transform: rotate(72deg) translateY(-28%); }
-.petal-c { transform: rotate(144deg) translateY(-28%); }
-
-.bloom-center {
-  left: 46%;
-  top: 42%;
-  width: 9%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: #71633f;
-}
-
-.mood-vessel .mood-sun {
-  left: 30%;
-  top: 13%;
-  width: 46%;
-  opacity: 0.75;
-}
-
-.vessel-neck {
-  top: 32%;
-  left: 43%;
-  width: 18%;
-  height: 19%;
-  background: #71633f;
-}
-
-.vessel-body {
-  bottom: 8%;
-  left: 27%;
-  width: 50%;
-  height: 54%;
-  border-radius: 35% 35% 42% 42% / 20% 20% 60% 60%;
-  background: #f7f4ed;
-  box-shadow: inset -15px 0 0 rgba(113, 99, 63, 0.13);
-}
-
-.mood-leaf .mood-sun {
-  left: 54%;
-  top: 14%;
-  width: 34%;
-  opacity: 0.9;
-}
-
-.leaf-stem {
-  left: 48%;
-  top: 22%;
-  width: 2px;
-  height: 68%;
-  background: #eae5d9;
-  transform: rotate(28deg);
-}
-
-.leaf-one,
-.leaf-two,
-.leaf-three {
-  width: 28%;
-  height: 18%;
-  border-radius: 100% 0 100% 0;
-  background: #a8b09c;
-  transform: rotate(-24deg);
-}
-
-.leaf-one { left: 26%; top: 37%; }
-.leaf-two { left: 47%; top: 53%; transform: rotate(154deg); }
-.leaf-three { left: 22%; top: 67%; transform: rotate(-13deg); }
-
-.mood-tile figcaption {
-  position: absolute;
-  right: 0.8rem;
-  bottom: 0.7rem;
-  left: 0.8rem;
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  color: #2e2c27;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-.mood-tile:last-child figcaption { color: #f7f4ed; }
-
-@media (min-width: 768px) {
-  .mood-tile figcaption { right: 1rem; bottom: 0.9rem; left: 1rem; }
 }

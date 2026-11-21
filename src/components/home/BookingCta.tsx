@@ -4,22 +4,22 @@ import { cn } from "@/lib/utils";
 
 export default function BookingCta() {
   return (
-    <section className="relative overflow-hidden bg-gold-dark px-6 py-20 text-cream md:px-16 md:py-24">
-      <span aria-hidden="true" className="absolute -right-14 -top-24 size-72 rounded-full border border-white/15 md:right-[9%] md:size-96" />
-      <span aria-hidden="true" className="absolute -right-2 -top-12 size-52 rounded-full border border-white/10 md:right-[14%] md:size-72" />
+    <section className="relative overflow-hidden bg-plum px-5 py-16 text-white sm:px-6 md:px-12 md:py-24 xl:px-16">
+      <span aria-hidden="true" className="absolute -right-20 -top-28 size-72 rounded-full border border-pink-hot/35 md:right-[8%] md:size-[26rem]" />
+      <span aria-hidden="true" className="absolute -right-4 -top-10 size-48 rounded-full border border-white/20 md:right-[14%] md:size-64" />
       <div className="relative mx-auto flex max-w-7xl flex-col items-start gap-6 md:items-center md:text-center">
-        <p className="flex items-center gap-3 text-[11px] font-semibold tracking-[0.04em] text-cream/75">
-          <span className="text-rose">✳</span> Leave a little room for you
+        <p className="flex items-center gap-3 text-xs font-semibold text-pink-blush">
+          <span aria-hidden="true" className="size-2 rounded-full bg-pink-hot" />Your next little reset
         </p>
-        <h2 className="max-w-3xl font-display text-5xl font-medium leading-[0.95] tracking-tight md:text-7xl">
-          Make time for <span className="italic text-[#dec7a7]">feeling good.</span>
+        <h2 className="max-w-3xl font-display text-5xl font-semibold leading-[0.95] tracking-tight md:text-7xl">
+          Your nails. Your colour. <span className="italic text-pink-blush">Your moment.</span>
         </h2>
-        <p className="max-w-md text-sm leading-6 text-cream/75 md:text-base">
-          Choose your services and an available appointment time. The studio will review your request and contact you about approval.
+        <p className="max-w-xl text-sm leading-6 text-white/80 md:text-base">
+          Choose a service and preferred time. We’ll email you after the studio reviews your request.
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-5">
-          <Link href="/services" className={cn(buttonStyles(), "min-h-14 bg-cream text-gold-dark shadow-sm hover:bg-white")}>Book a service</Link>
-          <Link href="/cart" className="text-xs font-semibold text-cream underline decoration-cream/40 underline-offset-4 hover:decoration-cream">Open booking cart</Link>
+          <Link href="/services" className={cn(buttonStyles(), "min-h-14 text-sm")}>Book your appointment</Link>
+          <Link href="/cart" className="min-h-11 px-2 text-sm font-semibold text-white underline decoration-white/45 underline-offset-4 hover:text-pink-blush">Open booking cart</Link>
         </div>
       </div>
     </section>

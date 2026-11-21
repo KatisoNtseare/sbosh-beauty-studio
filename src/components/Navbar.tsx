@@ -10,9 +10,9 @@ import { businessProfile } from "@/lib/brand";
 const links = [
   { href: "/", label: "Home" },
   { href: "/services", label: "Services" },
-  { href: "/pricing", label: "Nail menu" },
-  { href: "/gallery", label: "Studio moodboard" },
-  { href: "/about", label: "Our approach" },
+  { href: "/services#combination-packages", label: "Packages" },
+  { href: "/about", label: "About" },
+  { href: "/gallery", label: "Our studio" },
 ];
 
 export default function Navbar() {
@@ -43,8 +43,8 @@ export default function Navbar() {
                 href={link.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "border-b border-transparent py-2 text-[11px] font-medium tracking-[0.08em] text-ink/75 transition-colors hover:border-olive hover:text-olive",
-                  active && "border-olive text-olive"
+                  "border-b border-transparent py-2 text-xs font-medium text-ink/75 transition-colors hover:border-pink-primary hover:text-pink-primary",
+                  active && "border-pink-primary text-pink-primary"
                 )}
               >
                 {link.label}
@@ -54,8 +54,8 @@ export default function Navbar() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
-          <Link href="/services" className={cn(buttonStyles(), "min-h-11 bg-olive px-5 text-xs text-white shadow-sm hover:bg-gold-dark") }>
-            Book now
+          <Link href="/services" className={cn(buttonStyles(), "min-h-11 px-5 text-[11px] sm:text-xs")}>
+            Book appointment
           </Link>
           <button
             type="button"

@@ -5,7 +5,7 @@ import { studioContact } from "@/lib/data";
 import Link from "next/link";
 import { businessProfile } from "@/lib/brand";
 
-export const metadata: Metadata = { title: "Nail service menu", description: `Browse the current nail services and send a request to ${businessProfile.name}.` };
+export const metadata: Metadata = { title: "Services and packages", description: `Browse current nail services and packages at ${businessProfile.name}.` };
 export default function PricingPage() {
-  return <><div className="mx-auto max-w-7xl px-6 pb-4 pt-14 md:px-16 md:pt-20"><PageIntro eyebrow="The nail menu" title="Find your nail service." lead="Choose a treatment and available appointment time. The studio will contact you after reviewing the request."/><div className="mt-6 flex flex-wrap gap-4 text-sm"><a href={studioContact.phoneHref} className="text-olive underline">Call {studioContact.phone}</a><Link href="/cart" className="text-olive underline">Request an appointment</Link></div></div><ServicesSection /></>;
+  return <><div className="mx-auto max-w-7xl px-5 pb-4 pt-12 sm:px-6 md:px-12 md:pt-16 xl:px-16"><PageIntro eyebrow="The nail menu" title="Find your next favourite." lead="Browse the studio’s live services and packages, with current prices and availability."/><div className="mt-6 flex flex-wrap gap-4 text-sm"><a href={studioContact.phoneHref} className="font-semibold text-pink-primary underline decoration-pink-primary/40 underline-offset-4">Call {studioContact.phone}</a><Link href="/services" className="font-semibold text-pink-primary underline decoration-pink-primary/40 underline-offset-4">Request an appointment</Link></div></div><ServicesSection /></>;
 }
