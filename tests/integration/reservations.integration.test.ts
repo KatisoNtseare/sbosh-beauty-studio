@@ -28,12 +28,13 @@ import { GET as getPublicServices } from "@/app/api/services/route";
 import { GET as getAdminBookings } from "@/app/api/admin/bookings/route";
 import { GET as getAdminAvailability } from "@/app/api/admin/availability/route";
 import { GET as getAdminServices } from "@/app/api/admin/services/route";
-import { GET as getAdminPackages } from "@/app/api/admin/packages/route";
-import { PATCH as updatePackage, DELETE as deletePackage } from "@/app/api/admin/packages/route";
+import { GET as getAdminPackages, POST as createPackage, PATCH as updatePackage, DELETE as deletePackage } from "@/app/api/admin/packages/route";
 import { GET as getCatalogue } from "@/app/api/services/route";
+import { GET as getAvailability } from "@/app/api/availability/route";
 const smtpMock = (globalThis as typeof globalThis & { __integrationSmtpMock: { sendMail: ReturnType<typeof vi.fn> } }).__integrationSmtpMock;
 
 const cleanupBookingIds: mongoose.Types.ObjectId[] = [];
+const cleanupPackageIds: mongoose.Types.ObjectId[] = [];
 const testRunId = randomUUID();
 const integrationLockId = new mongoose.Types.ObjectId("000000000000000000000001");
 const reservationDates: string[] = [];
@@ -145,6 +146,7 @@ afterAll(async () => {
       if (reservationDates.length) await ReservationDay.deleteMany({ date: { $in: [...new Set(reservationDates)] } });
       if (availabilityId) await Availability.deleteOne({ _id: availabilityId });
       if (packageFixture?._id) await ServicePackage.deleteOne({ _id: packageFixture._id });
+      if (cleanupPackageIds.length) await ServicePackage.deleteMany({ _id: { $in: cleanupPackageIds } });
       if (repair?._id) await Service.deleteOne({ _id: repair._id });
       if (pedicure?._id) await Service.deleteOne({ _id: pedicure._id });
       if (service?._id) await Service.deleteOne({ _id: service._id });
@@ -385,6 +387,12 @@ describe("MongoDB booking and reservation integration", () => {
     const approved = await adminAction(booking!.id, "approve", { date: booking!.preferredDate, time: booking!.preferredTime, confirmedPrice: 85, priceConfirmedWithCustomer: true });
     expect(approved.status).toBe(200);
     expect(await Booking.findById(booking!._id)).toMatchObject({ totalPrice: 85, priceNeedsConfirmation: false });
+
+    await Service.updateOne({ _id: repair._id }, { $set: { durationConfirmed: false } });
+    const availability = await getAvailability(new Request(`http://localhost/api/availability?date=${nextDate()}&serviceId=${repair.id}`));
+    expect(availability.status).toBe(409);
+    expect(await availability.json()).toMatchObject({ times: [] });
+    await Service.updateOne({ _id: repair._id }, { $set: { durationConfirmed: true } });
   });
 
   it("does not create setup templates when the public catalogue is viewed", async () => {
@@ -416,6 +424,18 @@ describe("MongoDB booking and reservation integration", () => {
 
   it("updates packages, validates identifiers and compositions, and archives packages with booking history", async () => {
     sessionState.value = adminCookieValue(admin);
+    const createdResponse = await createPackage(new Request("http://localhost/api/admin/packages", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: `API-created package ${testRunId}`, description: "Created through admin API", serviceIds: [service.id, pedicure.id], additionalDurationMinutes: 5, displayOrder: 25, active: true }),
+    }));
+    expect(createdResponse.status).toBe(201);
+    const created = (await createdResponse.json()).package;
+    cleanupPackageIds.push(new mongoose.Types.ObjectId(created._id));
+    expect(created).toMatchObject({ name: `API-created package ${testRunId}`, description: "Created through admin API", additionalDurationMinutes: 5, displayOrder: 25, active: true });
+    const deletedResponse = await deletePackage(new Request(`http://localhost/api/admin/packages?id=${created._id}`, { method: "DELETE" }));
+    expect(deletedResponse.status).toBe(200);
+    expect(await deletedResponse.json()).toMatchObject({ deleted: true });
+
     const patch = (body: Record<string, unknown>) => updatePackage(new Request("http://localhost/api/admin/packages", {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
     }));
