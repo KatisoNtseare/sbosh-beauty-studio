@@ -40,7 +40,6 @@ export function buildServiceQuote(service: PricedService, selections: ExtraSelec
     extras,
     totalPrice,
     priceNeedsConfirmation: totalPrice === null,
-    componentCount: 1,
   };
 }
 
@@ -91,7 +90,6 @@ export async function buildPackageQuote(servicePackage: {
     extras: selected,
     totalPrice,
     priceNeedsConfirmation: totalPrice === null,
-    componentCount: components.length,
   };
 }
 
@@ -120,14 +118,12 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
     const quote = await loadSingleCatalogueQuote(input);
     return {
       ...quote,
-      componentCounts: [quote.componentCount],
       items: [{
         id: quote.service.id,
         kind: quote.service.isPackage ? "package" : "service",
         name: quote.service.name,
         price: quote.service.price,
         priceConfirmed: quote.service.priceConfirmed,
-        componentCount: quote.componentCount,
       }],
     };
   }
@@ -150,9 +146,8 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
     name: quote.service.name,
     price: quote.service.price,
     priceConfirmed: quote.service.priceConfirmed,
-    componentCount: quote.componentCount,
   }));
-  if (quotes.length === 1) return { ...quotes[0], componentCounts: [quotes[0].componentCount], items };
+  if (quotes.length === 1) return { ...quotes[0], items };
   return {
     service: {
       id: quotes[0].service.id,
@@ -169,7 +164,6 @@ export async function loadCatalogueQuote(input: CatalogueRequest & { items?: unk
     extras: quotes.flatMap((quote) => quote.extras),
     totalPrice,
     priceNeedsConfirmation: totalPrice === null,
-    componentCounts: quotes.map((quote) => quote.componentCount),
     items,
   };
 }

@@ -72,18 +72,16 @@ describe("appointment availability", () => {
   it("defines all seven business days from 09:00 to 17:30 and uses the fixed reservation block", async () => {
     expect(isDefaultWeeklySchedule(defaultWeeklySchedule)).toBe(true);
     expect(defaultWeeklySchedule).toHaveLength(7);
-    expect(calculateBookingReservation([1])).toEqual({ minutes: 30, exceedsMaximum: false });
-    expect(calculateBookingReservation([2])).toEqual({ minutes: 60, exceedsMaximum: false });
-    expect(calculateBookingReservation([1, 2])).toEqual({ minutes: 90, exceedsMaximum: false });
-    expect(calculateBookingReservation([4])).toEqual({ minutes: 120, exceedsMaximum: false });
-    expect(calculateBookingReservation([5])).toEqual({ minutes: 150, exceedsMaximum: true });
-    expect(calculateBookingReservation([0])).toBeNull();
+    expect(calculateBookingReservation()).toEqual({ minutes: 30, exceedsMaximum: false });
+    expect(calculateBookingReservation(120)).toEqual({ minutes: 120, exceedsMaximum: false });
+    expect(calculateBookingReservation(121)).toEqual({ minutes: 121, exceedsMaximum: true });
+    expect(calculateBookingReservation(0)).toBeNull();
 
     const date = nextDate();
     const weekday = new Date(date + "T12:00:00Z").getUTCDay();
     schedule = { weekly: defaultWeeklySchedule, blockedDates: [], exceptions: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0 };
     reservations = null;
-    expect(await slotsFor(date, calculateBookingReservation([1])!.minutes)).toEqual(
+    expect(await slotsFor(date, calculateBookingReservation()!.minutes)).toEqual(
       Array.from({ length: 17 }, (_, index) => {
         const start = 9 * 60 + index * 30;
         return `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;

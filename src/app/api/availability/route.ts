@@ -17,10 +17,9 @@ export async function GET(request: Request) {
   if (!validDate(date) || !Array.isArray(extras) || extras.length > 20) return Response.json({ error: "Choose a service or package and a valid date." }, { status: 400 });
   try {
     await connectDb();
-    let quote;
-    try { quote = await loadCatalogueQuote(items ? { items } : { serviceId, packageId, extras }); }
+    try { await loadCatalogueQuote(items ? { items } : { serviceId, packageId, extras }); }
     catch (error) { return Response.json({ date, times: [], error: error instanceof Error ? error.message : "Choose an available service." }, { status: 404 }); }
-    const reservation = calculateBookingReservation(quote.componentCounts);
+    const reservation = calculateBookingReservation();
     if (!reservation) return Response.json({ date, times: [], error: "Choose an available service." }, { status: 400 });
     if (reservation.exceedsMaximum) return Response.json({ date, times: [], error: MAX_BOOKING_DURATION_MESSAGE }, { status: 400 });
     const reservationDuration = reservation.minutes;

@@ -54,13 +54,13 @@ Use the existing private environment keys in `.env.local` and the hosting secret
 
 An administrator email is recorded on each booking before delivery. SMTP delivery happens after booking state is saved. Failed notices remain visible in the dashboard and can be retried; delivery errors do not undo a booking or approval. Notification records prevent routine duplicate sends and track attempts, delivery time and a safe failure message.
 
-## Availability and appointment lengths
+## Availability and booking reservations
 
 In `/admin`, select a reference date to identify a weekday, set opening and closing times, and save a recurring weekly schedule. The interface states which weekday will repeat. Editing a weekday replaces its current schedule. Add specific dates under **Closed dates**; the recurring hours resume the following week. The old one-off opening interface is removed. Old closed dates are retained, and old one-off openings are preserved for review by the migration.
 
-Scheduling uses `Africa/Johannesburg` calendar dates and times. It respects weekly periods, closed dates, breaks, blocked periods, approved reservations and the configured slot interval and buffer. A time is offered only if the full appointment fits before closing.
+Scheduling uses `Africa/Johannesburg` calendar dates and times. It respects weekly periods, closed dates, breaks, blocked periods, reservations and the configured 30-minute start-time interval and buffer. Each booking reserves one standard 30-minute block, regardless of selected services, packages or extras. The backend reservation policy caps any reservation window at two hours, and a time is offered only if its block fits before closing.
 
-Each service has its own appointment length in minutes. An administrator must explicitly mark the length as confirmed before the service can be booked online. Legacy duration values are not treated as approved until reviewed in the editor. Package duration is the sum of its included service lengths plus any package time configured by the studio; selected extras add time only when an extra has an explicit duration configured. Availability is recalculated for the entire selected length and uses the existing recurring schedule, buffers and reservations.
+Services and packages do not require appointment-length configuration or confirmation. Older duration fields may remain in MongoDB records for compatibility, but they do not affect new bookings or availability.
 
 ## Admin and service setup
 
@@ -74,9 +74,9 @@ Populate a development or production application's catalogue once from its own `
 npm run seed:catalogue
 ```
 
-The seed is additive and idempotent: it inserts missing approved services/packages and configures only matching inactive `Setup placeholder` service records. Other existing catalogue records are left unchanged. It never resets collections or changes bookings. Run it separately for each intended Atlas environment. In a production shell, set `CONFIRM_PRODUCTION_CATALOGUE_SEED=yes` before running it. It does not assign appointment lengths. Review and confirm each service duration in `/admin` before customers can book it online. Price-pending additional services remain visible as “Price to be confirmed”; an admin must confirm the total with the customer before approval.
+The seed is additive and idempotent: it inserts missing approved services/packages and configures only matching inactive `Setup placeholder` service records. Other existing catalogue records are left unchanged. It never resets collections or changes bookings. Run it separately for each intended Atlas environment. In a production shell, set `CONFIRM_PRODUCTION_CATALOGUE_SEED=yes` before running it. Services do not need appointment-length settings to be booked. Price-pending additional services remain visible as “Price to be confirmed”; an admin must confirm the total with the customer before approval.
 
-Before enabling the seeded catalogue, review existing services in the admin catalogue and compare names, categories, prices, descriptions and booking history with the approved list. Deactivate obsolete services from the admin screen so they are archived (rather than removed when bookings reference them); check that no active package depends on a service you plan to deactivate. Then run the seed and confirm the intended services, package components and durations in `/admin`. The seed does not archive arbitrary old services or overwrite customized services, booking snapshots, customer bookings or administrator accounts.
+Before enabling the seeded catalogue, review existing services in the admin catalogue and compare names, categories, prices, descriptions and booking history with the approved list. Deactivate obsolete services from the admin screen so they are archived (rather than removed when bookings reference them); check that no active package depends on a service you plan to deactivate. Then run the seed and confirm the intended services and package components in `/admin`. The seed does not archive arbitrary old services or overwrite customized services, booking snapshots, customer bookings or administrator accounts.
 
 | Category | Services and approved prices |
 | --- | --- |
@@ -88,9 +88,9 @@ Before enabling the seeded catalogue, review existing services in the admin cata
 
 Optional extras are stored on compatible services: Nail Art (Gems/Rhinestones) R15 per nail, Chrome R20 per nail, 3D Effect R30 per design and Marble Effect R10 per design. Customers choose quantities on the booking page; the server checks compatibility and calculates each line. The browser never supplies an authoritative price.
 
-The five initial combinations are Plain Set + Plain Pedicure (R260), Ombré Set + Plain Pedicure (R280), French Set + French Pedicure (R320), Plain Gel Set + Plain Gel Pedicure (R210), and Gel French Set + Gel French Pedicure (R250). Package prices are calculated from current component prices, with no discount or separate package price field. Edit services, extras, categories, durations, images, active state and package components under **Admin → Availability & services**. Upload a service photo there later; existing default imagery remains in place until replaced. Missing images use `/images/hero.jpg`.
+The five initial combinations are Plain Set + Plain Pedicure (R260), Ombré Set + Plain Pedicure (R280), French Set + French Pedicure (R320), Plain Gel Set + Plain Gel Pedicure (R210), and Gel French Set + Gel French Pedicure (R250). Package prices are calculated from current component prices, with no discount or separate package price field. Edit services, extras, categories, images, active state and package components under **Admin → Availability & services**. Upload a service photo there later; existing default imagery remains in place until replaced. Missing images use `/images/hero.jpg`.
 
-Services with booking history or package references are archived instead of deleted. Each booking keeps the service/package name, component prices, extra quantities, per-unit prices, total and appointment length as a snapshot; later catalogue edits do not change existing booking records.
+Services with booking history or package references are archived instead of deleted. Each booking keeps the service/package name, component prices, extra quantities, per-unit prices and total as a snapshot; later catalogue edits do not change existing booking records.
 
 Cloudinary image management is disabled unless all three Cloudinary settings are present. JPG, PNG and WebP uploads are limited to 5 MB and validated server-side.
 

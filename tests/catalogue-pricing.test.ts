@@ -40,7 +40,7 @@ describe("catalogue pricing", () => {
   it("derives server quotes and ignores browser-supplied totals", () => {
     const quote = buildServiceQuote({ _id: "507f1f77bcf86cd799439011", name: "French Set", price: 190, priceConfirmed: true, extras, active: true }, [{ key: "nail-art", quantity: 2 }, { key: "3d-effect", quantity: 1 }]);
     expect(quote.totalPrice).toBe(250);
-    expect(quote.componentCount).toBe(1);
+    expect(quote).not.toHaveProperty("durationMinutes");
     expect(calculateCatalogueTotal(quote.service.price ?? null, quote.extras.map((extra) => extra.subtotal))).toBe(250);
   });
 

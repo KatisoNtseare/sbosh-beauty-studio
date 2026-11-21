@@ -276,7 +276,9 @@ describe("MongoDB booking and reservation integration", () => {
 
     const availability = await getAvailability(new Request(`http://localhost/api/availability?date=${date}&serviceId=${service.id}`));
     expect(availability.status).toBe(200);
-    const times = (await availability.json()).times as string[];
+    const availabilityBody = await availability.json();
+    const times = availabilityBody.times as string[];
+    expect(availabilityBody.error).toBeUndefined();
     expect(times[0]).toBe("09:00");
     expect(times).toContain("17:00");
     expect(times).not.toContain("17:30");
@@ -289,7 +291,7 @@ describe("MongoDB booking and reservation integration", () => {
     expect(await Booking.findById(booking!._id)).toMatchObject({ confirmedDate: date, confirmedStart: "09:00", confirmedEnd: "09:30" });
   });
 
-  it("allows exactly two hours and rejects longer selections in availability and booking submission", async () => {
+  it("reserves one availability block for multi-service selections without adding time for extras", async () => {
     const allowedDate = nextDate();
     const items = (count: number) => Array.from({ length: count }, () => ({ serviceId: service.id, extras: [{ key: "nail-art", quantity: 2 }] }));
     const available = await getAvailability(new Request(`http://localhost/api/availability?date=${allowedDate}&items=${encodeURIComponent(JSON.stringify(items(4)))}`));
@@ -298,29 +300,33 @@ describe("MongoDB booking and reservation integration", () => {
     const allowed = await postBooking({ ...bookingBody(allowedDate), serviceId: undefined, items: items(4) }, `${testRunId}-two-hours-${randomUUID()}`);
     expect(allowed.response.status).toBe(201);
     const allowedBooking = await Booking.findOne({ reference: allowed.result.reference });
-    expect(allowedBooking).toMatchObject({ reservationDurationMinutes: 120 });
+    expect(allowedBooking).toMatchObject({ reservationDurationMinutes: 30 });
     expect(allowedBooking?.extras).toHaveLength(4);
     expect(allowedBooking?.extras.every((extra: { subtotal?: number }) => extra.subtotal === 30)).toBe(true);
     expect((await adminAction(allowedBooking!.id, "approve", { date: allowedDate, time: "10:00" })).status).toBe(200);
-    expect(await Booking.findById(allowedBooking!._id)).toMatchObject({ confirmedEnd: "12:00" });
+    expect(await Booking.findById(allowedBooking!._id)).toMatchObject({ confirmedEnd: "10:30" });
 
     const rejectedDate = nextDate();
-    const tooLongAvailability = await getAvailability(new Request(`http://localhost/api/availability?date=${rejectedDate}&items=${encodeURIComponent(JSON.stringify(items(5)))}`));
-    expect(tooLongAvailability.status).toBe(400);
-    expect((await tooLongAvailability.json()).error).toBe("A booking cannot exceed 2 hours. Please split your selection into separate bookings.");
-    const rejected = await postBooking({ ...bookingBody(rejectedDate), serviceId: undefined, items: items(5) }, `${testRunId}-too-long-${randomUUID()}`);
-    expect(rejected.response.status).toBe(400);
-    expect(rejected.result.error).toBe("A booking cannot exceed 2 hours. Please split your selection into separate bookings.");
+    const multiServiceAvailability = await getAvailability(new Request(`http://localhost/api/availability?date=${rejectedDate}&items=${encodeURIComponent(JSON.stringify(items(5)))}`));
+    expect(multiServiceAvailability.status).toBe(200);
+    expect((await multiServiceAvailability.json()).times).toContain("09:00");
+    const multiServiceBooking = await postBooking({ ...bookingBody(rejectedDate), serviceId: undefined, items: items(5) }, `${testRunId}-five-services-${randomUUID()}`);
+    expect(multiServiceBooking.response.status).toBe(201);
+    expect(await Booking.findOne({ reference: multiServiceBooking.result.reference })).toMatchObject({ reservationDurationMinutes: 30 });
 
     const legacyDate = nextDate();
     reservationDates.push(legacyDate);
     const tooLongPackageSnapshot = { isPackage: true, components: Array.from({ length: 5 }, (_, index) => ({ id: service._id, name: `Legacy component ${index + 1}`, price: 190 })) };
-    const pendingLegacy = await Booking.create({ reference: `IT-${testRunId}-${randomUUID()}`, customer: { name: "Legacy Customer", phone: "0813179144" }, service: { id: packageFixture._id, name: "Legacy package", ...tooLongPackageSnapshot }, preferredDate: legacyDate, preferredTime: "10:00", status: "PENDING" });
+    const pendingLegacy = await Booking.create({ reference: `IT-${testRunId}-${randomUUID()}`, customer: { name: "Legacy Customer", phone: "0813179144" }, service: { id: packageFixture._id, name: "Legacy package", ...tooLongPackageSnapshot, durationMinutes: 600 }, reservationDurationMinutes: 600, preferredDate: legacyDate, preferredTime: "10:00", status: "PENDING" });
     cleanupBookingIds.push(pendingLegacy._id);
-    expect((await adminAction(pendingLegacy.id, "approve", { date: legacyDate, time: "10:00" })).status).toBe(409);
-    const approvedLegacy = await Booking.create({ reference: `IT-${testRunId}-${randomUUID()}`, customer: { name: "Legacy Customer", phone: "0813179144" }, service: { id: packageFixture._id, name: "Legacy package", ...tooLongPackageSnapshot }, preferredDate: legacyDate, preferredTime: "10:00", confirmedDate: legacyDate, confirmedStart: "10:00", confirmedEnd: "12:30", status: "APPROVED" });
+    expect((await adminAction(pendingLegacy.id, "approve", { date: legacyDate, time: "10:00" })).status).toBe(200);
+    expect(await Booking.findById(pendingLegacy._id)).toMatchObject({ reservationDurationMinutes: 600, confirmedEnd: "10:30" });
+    const approvedLegacy = await Booking.create({ reference: `IT-${testRunId}-${randomUUID()}`, customer: { name: "Legacy Customer", phone: "0813179144" }, service: { id: packageFixture._id, name: "Legacy package", ...tooLongPackageSnapshot, durationMinutes: 600 }, reservationDurationMinutes: 600, preferredDate: legacyDate, preferredTime: "10:00", confirmedDate: legacyDate, confirmedStart: "10:00", confirmedEnd: "20:00", status: "APPROVED" });
     cleanupBookingIds.push(approvedLegacy._id);
-    expect((await adminAction(approvedLegacy.id, "reschedule", { date: nextDate(), time: "10:00" })).status).toBe(409);
+    const newDate = nextDate();
+    reservationDates.push(newDate);
+    expect((await adminAction(approvedLegacy.id, "reschedule", { date: newDate, time: "10:00" })).status).toBe(200);
+    expect(await Booking.findById(approvedLegacy._id)).toMatchObject({ reservationDurationMinutes: 600, confirmedDate: newDate, confirmedEnd: "10:30" });
   });
 
   it("uses atomic database updates for overlapping, adjacent and buffered intervals", async () => {
@@ -397,7 +403,7 @@ describe("MongoDB booking and reservation integration", () => {
     const result = await postBooking({ ...bookingBody(nextDate()), serviceId: undefined, packageId: packageFixture.id, extras: [{ key: `${service.id}:nail-art`, quantity: 2 }], totalPrice: 0 }, `${testRunId}-package-${randomUUID()}`);
     expect(result.response.status).toBe(201);
     const booking = await Booking.findOne({ reference: result.result.reference });
-    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, reservationDurationMinutes: 60, service: { isPackage: true, name: packageFixture.name } });
+    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, reservationDurationMinutes: 30, service: { isPackage: true, name: packageFixture.name } });
     expect(booking?.service.components).toHaveLength(2);
     expect(booking?.extras[0].subtotal).toBe(30);
     await Service.updateOne({ _id: pedicure._id }, { $set: { price: 125 } });
@@ -419,7 +425,7 @@ describe("MongoDB booking and reservation integration", () => {
     }, `${testRunId}-cart-${randomUUID()}`);
     expect(result.response.status).toBe(201);
     const booking = await Booking.findOne({ reference: result.result.reference });
-    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, reservationDurationMinutes: 60 });
+    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, reservationDurationMinutes: 30 });
     expect(booking?.items).toMatchObject([{ name: service.name, price: 190 }, { name: pedicure.name, price: 110 }]);
     expect(booking?.extras).toMatchObject([{ name: "Nail Art", quantity: 2, subtotal: 30, componentId: service.id }]);
   });

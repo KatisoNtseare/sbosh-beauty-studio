@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     try { quote = await loadCatalogueQuote({ items }); }
     catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Choose available services." }, { status: 400 }); }
     const settings = await Availability.findOne().select("slotMinutes bufferMinutes").lean();
-    const reservation = calculateBookingReservation(quote.componentCounts);
+    const reservation = calculateBookingReservation();
     if (!reservation) return Response.json({ error: "Choose an available service." }, { status: 400 });
     if (reservation.exceedsMaximum) return Response.json({ error: MAX_BOOKING_DURATION_MESSAGE }, { status: 400 });
     const reservationDuration = reservation.minutes;
