@@ -54,7 +54,7 @@ export default function Navbar() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
-          <Link href="/book" className={cn(buttonStyles(), "min-h-10 px-5 text-[10px] tracking-[0.12em]")}>
+          <Link href="/cart" className={cn(buttonStyles(), "min-h-10 px-5 text-[10px] tracking-[0.12em]")}>
             Book a visit
           </Link>
           <button

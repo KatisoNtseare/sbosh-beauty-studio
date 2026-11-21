@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { buttonStyles } from "@/lib/button";
 import { cn } from "@/lib/utils";
-import { studioContact } from "@/lib/data";
 
 export default function Hero() {
   return (
@@ -37,9 +36,9 @@ export default function Hero() {
             Manicures, gel nails, overlays, nail repair, buff &amp; shine — with a little room to slow down and feel looked after.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-4">
-            <a href={studioContact.whatsappHref} className={cn(buttonStyles(), "min-h-14 bg-cream px-7 text-olive hover:bg-white")}>
-              WhatsApp to book
-            </a>
+            <Link href="/services" className={cn(buttonStyles(), "min-h-14 bg-cream px-7 text-olive hover:bg-white")}>
+              Browse services
+            </Link>
             <Link href="/#services" className="group inline-flex items-center gap-3 py-3 text-xs font-semibold text-white/90 underline decoration-white/45 underline-offset-4 hover:decoration-white">
               Explore treatments
               <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>

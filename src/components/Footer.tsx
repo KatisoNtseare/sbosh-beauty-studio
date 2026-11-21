@@ -34,7 +34,6 @@ export default function Footer() {
           <span className="mb-1 font-semibold text-cream">Visit or contact us</span>
           <a href={studioContact.phoneHref} className="w-fit hover:text-white">{studioContact.phone}</a>
           <a href={studioContact.mapHref} target="_blank" rel="noreferrer" className="max-w-xs leading-5 hover:text-white">{studioContact.address}</a>
-          <a href={studioContact.whatsappHref} target="_blank" rel="noreferrer" className="mt-1 w-fit font-semibold text-white underline decoration-white/50 underline-offset-4 hover:decoration-white">WhatsApp the studio ↗</a>
           <p className="mt-3 text-[11px] text-cream/60">© 2026 {businessProfile.name}</p>
         </div>
       </div>

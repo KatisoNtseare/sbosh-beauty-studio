@@ -18,6 +18,7 @@ import Availability from "@/models/Availability";
 import RateLimit from "@/models/RateLimit";
 import ReservationDay from "@/models/ReservationDay";
 import Service from "@/models/Service";
+import Counter from "@/models/Counter";
 import { POST as submitBooking } from "@/app/api/bookings/route";
 import { PATCH as updateBooking } from "@/app/api/admin/bookings/[id]/route";
 import { PATCH as updateService } from "@/app/api/admin/services/route";
@@ -95,14 +96,14 @@ beforeAll(async () => {
   await connectDb();
   sessionState.value = adminCookieValue(admin);
   const counts = await Promise.all([
-    Booking.countDocuments(), Service.countDocuments(), Availability.countDocuments(),
+    Booking.countDocuments(), Service.countDocuments(), Availability.countDocuments(), Counter.countDocuments(),
     ReservationDay.countDocuments(), RateLimit.countDocuments(),
   ]);
   if (counts.some((count) => count !== 0)) {
     throw new Error("The isolated test database must be empty before integration tests run; no records were deleted.");
   }
   safeToCleanup = true;
-  await Promise.all([Booking, Service, Availability, ReservationDay, RateLimit].map((model) => model.createIndexes()));
+  await Promise.all([Booking, Service, Availability, ReservationDay, RateLimit, Counter].map((model) => model.createIndexes()));
 
   service = await Service.create({ name: `Integration service ${randomUUID()}`, description: "Test", durationMinutes: 60, active: true });
   const weekly = Array.from({ length: 7 }, (_, weekday) => ({ weekday, enabled: true, periods: [{ open: "09:00", close: "18:00" }] }));
@@ -120,6 +121,7 @@ afterAll(async () => {
       // These setup records can only have been inserted by the public service route after the empty-DB guard.
       await Service.deleteMany({ name: { $in: defaultServiceNames } });
       if (rateLimitIds.size) await RateLimit.deleteMany({ _id: { $in: [...rateLimitIds] } });
+      await Counter.deleteOne({ _id: "booking-reference" });
     }
   } finally {
     sessionState.value = "";
@@ -136,6 +138,9 @@ describe("MongoDB booking and reservation integration", () => {
     const body = bookingBody(date);
     const first = await postBooking(body, key);
     expect(first.response.status).toBe(201);
+    expect(first.result.reference).toMatch(/^#SBS\d+$/);
+    const submitted = await Booking.findOne({ reference: first.result.reference });
+    expect(submitted?.notifications[0]).toMatchObject({ type: "ADMIN_NEW_BOOKING", status: "SENT" });
 
     await Availability.updateOne({ _id: availabilityId }, { $push: { blockedPeriods: { date, start: "10:00", end: "11:00" } } });
     const retry = await postBooking(body, key);
@@ -206,11 +211,17 @@ describe("MongoDB booking and reservation integration", () => {
 
   it("preserves reservation lifecycle through rejection, cancellation, rescheduling and completion", async () => {
     const rejected = await createPending(nextDate());
-    expect(await adminAction(rejected.id, "reject")).toHaveProperty("status", 200);
+    const rejection = await adminAction(rejected.id, "reject", { reason: "Please choose another time." });
+    expect(rejection.status).toBe(200);
+    expect((await rejection.json()).emailStatus).toBe("SENT");
+    expect((await Booking.findById(rejected.id))?.notifications[0]).toMatchObject({ type: "CUSTOMER_REJECTED", status: "SENT" });
     expect(await ReservationDay.findOne({ date: rejected.preferredDate })).toBeNull();
 
     const cancelled = await createPending(nextDate());
-    expect((await adminAction(cancelled.id, "approve", { date: cancelled.preferredDate, time: "10:00" })).status).toBe(200);
+    const approval = await adminAction(cancelled.id, "approve", { date: cancelled.preferredDate, time: "10:00" });
+    expect(approval.status).toBe(200);
+    expect((await approval.json()).emailStatus).toBe("SENT");
+    expect((await Booking.findById(cancelled.id))?.notifications[0]).toMatchObject({ type: "CUSTOMER_APPROVED", status: "SENT" });
     expect(await ReservationDay.countDocuments({ date: cancelled.preferredDate, "reservations.0": { $exists: true } })).toBe(1);
     expect((await adminAction(cancelled.id, "cancel")).status).toBe(200);
     expect(await ReservationDay.countDocuments({ date: cancelled.preferredDate, "reservations.0": { $exists: true } })).toBe(0);

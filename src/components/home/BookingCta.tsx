@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { buttonStyles } from "@/lib/button";
 import { cn } from "@/lib/utils";
-import { studioContact } from "@/lib/data";
 
 export default function BookingCta() {
   return (
@@ -16,15 +15,11 @@ export default function BookingCta() {
           Make time for <span className="italic text-[#dec7a7]">feeling good.</span>
         </h2>
         <p className="max-w-md text-sm leading-6 text-cream/75 md:text-base">
-          Choose a nail service, then contact the studio to check pricing and appointment availability.
+          Choose a service and preferred time. The studio will review your request and email you after making a decision.
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-5">
-          <a href={studioContact.whatsappHref} className={cn(buttonStyles(), "bg-cream text-gold-dark hover:bg-white")}>
-            WhatsApp to book
-          </a>
-          <Link href="/book" className="text-xs font-semibold text-cream underline decoration-cream/40 underline-offset-4 hover:decoration-cream">
-            Use the appointment form
-          </Link>
+          <Link href="/services" className={cn(buttonStyles(), "bg-cream text-gold-dark hover:bg-white")}>Choose a service</Link>
+          <Link href="/cart" className="text-xs font-semibold text-cream underline decoration-cream/40 underline-offset-4 hover:decoration-cream">Open booking cart</Link>
         </div>
       </div>
     </section>

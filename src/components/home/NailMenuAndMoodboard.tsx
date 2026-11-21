@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import StudioMoodboard from "@/components/home/StudioMoodboard";
-import { studioContact } from "@/lib/data";
 
 type Treatment = { _id: string; name: string };
 
@@ -29,10 +28,7 @@ export default function NailMenuAndMoodboard() {
             ))}
           </ul>
           <p className="mt-4 max-w-sm text-xs leading-5 text-ink/60">Contact the studio for service prices and appointment availability.</p>
-          <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-olive">
-            <a href={studioContact.phoneHref} className="underline decoration-olive/40 underline-offset-4 hover:decoration-olive">Call {studioContact.phone}</a>
-            <a href={studioContact.whatsappHref} className="underline decoration-olive/40 underline-offset-4 hover:decoration-olive">WhatsApp us</a>
-          </div>
+          <Link href="/cart" className="mt-5 inline-block text-xs font-semibold text-olive underline decoration-olive/40 underline-offset-4">Send a booking request</Link>
           <Link href="/pricing" className="mt-6 inline-flex items-center gap-3 text-xs font-semibold text-olive underline decoration-olive/40 underline-offset-4 hover:decoration-olive">
             See the full nail menu <span aria-hidden="true">→</span>
           </Link>

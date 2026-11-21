@@ -6,7 +6,7 @@ import { dateKeyInTimezone, todayInSalon } from "@/lib/timezone";
 
 const secret = "a-test-secret-that-is-long-enough-for-hmac";
 const submission = {
-  customer: { name: "Customer One", phone: "+27813179144", description: "A detailed request" },
+  customer: { name: "Customer One", phone: "+27813179144", email: "customer@example.test", description: "A detailed request" },
   serviceId: "507f1f77bcf86cd799439011",
   date: "2026-12-15",
   time: "10:00",

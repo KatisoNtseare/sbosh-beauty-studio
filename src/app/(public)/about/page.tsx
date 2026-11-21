@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import PageIntro from "@/components/layouts/PageIntro";
 import { businessProfile } from "@/lib/brand";
 import { buttonStyles } from "@/lib/button";
@@ -55,7 +56,7 @@ export default function AboutPage() {
         </div>
         <div className="flex flex-wrap gap-3">
           <a href={studioContact.phoneHref} className={cn(buttonStyles({ variant: "outline" }), "border-cream text-cream hover:bg-cream hover:text-olive")}>Call the studio</a>
-          <a href={studioContact.whatsappHref} className={cn(buttonStyles(), "bg-cream text-olive hover:bg-white")}>WhatsApp us</a>
+          <Link href="/cart" className={cn(buttonStyles(), "bg-cream text-olive hover:bg-white")}>Send a booking request</Link>
         </div>
       </section>
     </div>

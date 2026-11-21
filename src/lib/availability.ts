@@ -14,17 +14,17 @@ export function validCalendarDate(value: string) {
 export function validDate(value: string) { return validCalendarDate(value) && value >= todayInSalon(); }
 
 export async function slotsFor(date: string, duration: number, ignoreBookingId?: string) {
-  if (!Number.isInteger(duration) || duration < 1 || duration > 600) return [];
+  if (!Number.isInteger(duration) || duration < 1 || duration > 150) return [];
   const settings = await Availability.findOne().lean();
   if (!settings || !validDate(date) || settings.blockedDates?.includes(date)) return [];
-  const exceptions = settings.exceptions?.find((item: { date: string }) => item.date === date);
-  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const legacyClosed = settings.exceptions?.some((item: { date: string; enabled?: boolean }) => item.date === date && item.enabled === false);
+  if (legacyClosed) return [];
+  const weekday = new Date(date + "T12:00:00Z").getUTCDay();
   const weekly = settings.weekly?.find((item: { weekday: number }) => item.weekday === weekday);
-  const hours = exceptions ? (exceptions.enabled ? exceptions : null) : (weekly?.enabled ? weekly : null);
+  const hours = weekly?.enabled ? weekly : null;
   if (!hours) return [];
   const periods: { open: string; close: string }[] = Array.isArray(hours.periods) && hours.periods.length
-    ? hours.periods
-    : hours.open && hours.close ? [{ open: hours.open, close: hours.close }] : [];
+    ? hours.periods : hours.open && hours.close ? [{ open: hours.open, close: hours.close }] : [];
   if (!periods.length) return [];
   const step = Math.max(5, Number(settings.slotMinutes || 30));
   const reservations = await ReservationDay.findOne({ date }).lean();
@@ -50,7 +50,7 @@ export async function slotsFor(date: string, duration: number, ignoreBookingId?:
         return blockedStart >= 0 && blockedEnd > blockedStart && start < blockedEnd && end > blockedStart;
       });
       if (inBreak || inBlockedPeriod || occupied.some((r: { start: number; end: number }) => start < r.end && end > r.start)) continue;
-      out.add(`${String(Math.floor(start / 60)).padStart(2,"0")}:${String(start % 60).padStart(2,"0")}`);
+      out.add(String(Math.floor(start / 60)).padStart(2,"0") + ":" + String(start % 60).padStart(2,"0"));
     }
   }
   return [...out].sort();

@@ -3,28 +3,26 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { businessProfile } from "@/lib/brand";
-import { buildWhatsAppMessage, messageTypeForStatus, type BookingMessageType, whatsappUrl } from "@/lib/domain";
 import { calculateBookingStats } from "@/lib/admin-stats";
 
 type Booking = {
-  _id: string; reference: string; customer: { name: string; phone: string; email?: string };
-  service: { name: string; description?: string; fullDescription?: string; image?: string; priceLabel?: string; minimumPrice?: number; maximumPrice?: number; durationMinutes?: number; category?: string };
+  _id: string; reference: string; customer: { name: string; phone?: string; email: string };
+  service: { name: string; description?: string; fullDescription?: string; image?: string; priceLabel?: string; minimumPrice?: number; maximumPrice?: number; durationMinutes?: number; classification?: "LASHES" | "NAILS" | "TOES" | "GENERAL"; category?: string };
   description: string; preferredDate: string; preferredTime: string; confirmedDate?: string; confirmedStart?: string; confirmedEnd?: string;
   status: string; rejectionReason?: string; createdAt: string; history: { status: string; at: string; by: string; note?: string }[];
-  whatsapp?: { type: BookingMessageType; at: string; status: string; content: string }[];
+  notifications?: { _id: string; type: string; recipient: string; subject: string; status: string; attemptCount: number; sentAt?: string; lastFailure?: string }[];
 };
 type Period = { open: string; close: string };
 type Day = { weekday: number; enabled: boolean; periods: Period[] };
-type Exception = { date: string; enabled: boolean; periods: Period[] };
 type TimeBlock = { start: string; end: string };
 type BlockedPeriod = TimeBlock & { date: string };
-type AdminService = { _id: string; name: string; description: string; fullDescription: string; image: string; imagePublicId: string; priceLabel: string; minimumPrice?: number; maximumPrice?: number; durationMinutes?: number; category: string; displayOrder: number; active: boolean };
+type AdminService = { _id: string; name: string; description: string; fullDescription: string; image: string; imagePublicId: string; priceLabel: string; minimumPrice?: number; maximumPrice?: number; classification: "LASHES" | "NAILS" | "TOES" | "GENERAL"; category: string; displayOrder: number; active: boolean };
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const input = "min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink disabled:opacity-50";
 const blankPeriod = (): Period => ({ open: "09:00", close: "17:00" });
 const blankWeekly = (): Day[] => dayNames.map((_, weekday) => ({ weekday, enabled: false, periods: [blankPeriod()] }));
-const blankService = (): Omit<AdminService, "_id"> => ({ name: "", description: "", fullDescription: "", image: "/images/hero.jpg", imagePublicId: "", priceLabel: "", category: "Nail services", displayOrder: 0, active: true });
+const blankService = (): Omit<AdminService, "_id"> => ({ name: "", description: "", fullDescription: "", image: "/images/hero.jpg", imagePublicId: "", priceLabel: "", category: "Nail services", classification: "NAILS", displayOrder: 0, active: true });
 
 async function responseData(response: Response) {
   const body = await response.json().catch(() => ({}));
@@ -60,8 +58,8 @@ export default function AdminPanel() {
   async function updateBooking(id: string, payload: Record<string, string>) {
     setError(""); setNotice("");
     try {
-      await responseData(await fetch(`/api/admin/bookings/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }));
-      setRefreshVersion((version) => version + 1); setNotice("Booking updated.");
+      const result = await responseData(await fetch(`/api/admin/bookings/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }));
+      setRefreshVersion((version) => version + 1); setNotice(result.warning || (result.emailStatus === "SENT" ? "Booking updated and customer email sent." : "Booking updated."));
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Booking could not be updated."); }
   }
 
@@ -83,7 +81,7 @@ export default function AdminPanel() {
     {error && <p role="alert" className="mb-4 border-l-2 border-rose bg-white p-3 text-sm">{error}</p>}{notice && <p role="status" className="mb-4 border-l-2 border-olive bg-white p-3 text-sm">{notice}</p>}
     {tab === "bookings" && <>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">{[["Requests", stats.requests], ["Pending", stats.pending], ["Approved", stats.approved], ["Rejected", stats.rejected], ["Completed", stats.completed], ["Cancelled", stats.cancelled], ["Upcoming", stats.upcoming]].map(([label, value]) => <div key={String(label)} className="border border-line bg-white p-4"><p className="text-xs text-ink/60">{label}</p><p className="mt-1 font-display text-3xl">{value}</p></div>)}</div>
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className={input}><option value="ALL">All statuses</option>{["PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].map((value) => <option key={value}>{value}</option>)}</select><input placeholder="Customer, reference or phone" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} className={input}/><input type="date" aria-label="Filter by requested or confirmed date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1); }} className={input}/><select value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value); setPage(1); }} className={input}><option value="ALL">All services</option>{serviceNames.map((service) => <option key={service}>{service}</option>)}</select></div>
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className={input}><option value="ALL">All statuses</option>{["PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].map((value) => <option key={value}>{value}</option>)}</select><input placeholder="Customer, email or reference" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} className={input}/><input type="date" aria-label="Filter by requested or confirmed date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1); }} className={input}/><select value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value); setPage(1); }} className={input}><option value="ALL">All services</option>{serviceNames.map((service) => <option key={service}>{service}</option>)}</select></div>
       <div className="space-y-3">{filtered.map((booking) => <BookingRow key={booking._id} booking={booking} onAction={(payload) => void updateBooking(booking._id, payload)}/>)}</div>
       {!filtered.length && <p className="border border-line bg-white p-8 text-center text-sm text-ink/65">No booking requests match these filters.</p>}
       {total > 0 && <div className="mt-5 flex items-center justify-between text-sm"><span>{total} requests · page {page} of {pages}</span><div className="flex gap-2"><button disabled={page <= 1} onClick={() => setPage(page - 1)} className="border border-line px-4 py-2 disabled:opacity-40">Previous</button><button disabled={page >= pages} onClick={() => setPage(page + 1)} className="border border-line px-4 py-2 disabled:opacity-40">Next</button></div></div>}
@@ -94,32 +92,22 @@ export default function AdminPanel() {
 }
 
 function BookingRow({ booking, onAction }: { booking: Booking; onAction: (payload: Record<string, string>) => void }) {
-  const [reason, setReason] = useState(""); const [confirmedDate, setConfirmedDate] = useState(booking.confirmedDate || booking.preferredDate); const [confirmedTime, setConfirmedTime] = useState(booking.confirmedStart || booking.preferredTime);
-  const messageType = messageTypeForStatus(booking.status);
-  const isTracked = messageType ? booking.whatsapp?.some((item) => item.type === messageType && item.status === "SENT_MANUALLY") : false;
-  const message = messageType ? buildWhatsAppMessage(booking, messageType) : "";
-  let href = "#";
-  try { if (messageType) href = whatsappUrl(booking.customer.phone, message); } catch { /* legacy contact values won't expose a broken WhatsApp action */ }
-
+  const [reason, setReason] = useState("");
+  const [confirmedDate, setConfirmedDate] = useState(booking.confirmedDate || booking.preferredDate);
+  const [confirmedTime, setConfirmedTime] = useState(booking.confirmedStart || booking.preferredTime);
+  const dateTime = (date: string, time: string) => date + " at " + time;
   return <details className="border border-line bg-white">
-    <summary className="grid cursor-pointer gap-2 p-4 text-sm md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center"><b>{booking.reference}</b><span>{booking.customer.name}</span><span>{booking.service.name}</span><span>{booking.confirmedDate ? `${booking.confirmedDate} · ${booking.confirmedStart}` : `${booking.preferredDate} · ${booking.preferredTime}`}</span><span className="text-olive">{booking.status}</span></summary>
+    <summary className="grid cursor-pointer gap-2 p-4 text-sm md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center"><b>{booking.reference}</b><span>{booking.customer.name}</span><span>{booking.service.name}</span><span>{booking.confirmedDate ? dateTime(booking.confirmedDate, booking.confirmedStart || "") : dateTime(booking.preferredDate, booking.preferredTime)}</span><span className="text-olive">{booking.status}</span></summary>
     <div className="border-t border-line p-5 text-sm"><div className="grid gap-6 md:grid-cols-2">
-      <section><h2 className="mb-2 font-semibold">Customer</h2><p>{booking.customer.name} · <a className="underline" href={`tel:${booking.customer.phone}`}>{booking.customer.phone}</a></p>{booking.customer.email && <p>{booking.customer.email}</p>}<h3 className="mb-2 mt-5 font-semibold">What they’d like</h3><p className="whitespace-pre-wrap leading-6">{booking.description}</p></section>
-      <section><h2 className="mb-2 font-semibold">Service details at request time</h2><p>{booking.service.name} · {booking.service.category || "Nail services"}</p><p>{booking.service.priceLabel || (booking.service.minimumPrice != null ? `From R${booking.service.minimumPrice}${booking.service.maximumPrice != null ? `–R${booking.service.maximumPrice}` : ""}` : "Price not set")} · {booking.service.durationMinutes ? `${booking.service.durationMinutes} minutes` : "Duration not set"}</p>{booking.service.description && <p className="mt-2">{booking.service.description}</p>}{booking.service.fullDescription && <p className="mt-2 whitespace-pre-wrap">{booking.service.fullDescription}</p>}<h3 className="mb-2 mt-5 font-semibold">Appointment and history</h3><p>Requested: {booking.preferredDate} at {booking.preferredTime}</p>{booking.confirmedDate && <p>Confirmed: {booking.confirmedDate} at {booking.confirmedStart}–{booking.confirmedEnd}</p>}<ul className="mt-3 space-y-1 text-xs text-ink/65">{booking.history?.map((item, index) => <li key={`${item.status}-${index}`}>{item.status} · {new Date(item.at).toLocaleString("en-ZA", { timeZone: businessProfile.timezone })} · {item.by}{item.note ? ` · ${item.note}` : ""}</li>)}</ul></section>
+      <section><h2 className="mb-2 font-semibold">Customer</h2><p>{booking.customer.name}</p>{booking.customer.email && <p><a className="underline" href={"mailto:" + booking.customer.email}>{booking.customer.email}</a></p>}{booking.customer.phone && <p><a className="underline" href={"tel:" + booking.customer.phone}>{booking.customer.phone}</a></p>}<h3 className="mb-2 mt-5 font-semibold">Additional notes</h3><p className="whitespace-pre-wrap leading-6">{booking.description || "No additional notes."}</p></section>
+      <section><h2 className="mb-2 font-semibold">Service details at request time</h2><p>{booking.service.name} · {booking.service.category || "Nail services"}</p><p>{booking.service.priceLabel || (booking.service.minimumPrice != null ? "From R" + booking.service.minimumPrice + (booking.service.maximumPrice != null ? "–R" + booking.service.maximumPrice : "") : "Price not set")}</p>{booking.service.durationMinutes && <p>Recorded appointment length: {booking.service.durationMinutes} minutes</p>}{booking.service.description && <p className="mt-2">{booking.service.description}</p>}{booking.service.fullDescription && <p className="mt-2 whitespace-pre-wrap">{booking.service.fullDescription}</p>}<h3 className="mb-2 mt-5 font-semibold">Appointment and history</h3><p>Requested: {dateTime(booking.preferredDate, booking.preferredTime)}</p>{booking.confirmedDate && <p>Approved: {dateTime(booking.confirmedDate, booking.confirmedStart || "")}–{booking.confirmedEnd}</p>}{booking.rejectionReason && <p className="mt-2">Reason: {booking.rejectionReason}</p>}<ul className="mt-3 space-y-1 text-xs text-ink/65">{booking.history?.map((item, index) => <li key={item.status + "-" + index}>{item.status} · {new Date(item.at).toLocaleString("en-ZA", { timeZone: businessProfile.timezone })} · {item.by}{item.note ? " · " + item.note : ""}</li>)}</ul></section>
     </div>
-      {booking.status === "PENDING" && <div className="mt-5 flex flex-col gap-3 border-t border-line pt-4"><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs">Confirmed date<input type="date" min={new Date().toLocaleDateString("en-CA")} value={confirmedDate} onChange={(event) => setConfirmedDate(event.target.value)} className={`${input} mt-1`}/></label><label className="text-xs">Confirmed start time<input type="time" value={confirmedTime} onChange={(event) => setConfirmedTime(event.target.value)} className={`${input} mt-1`}/></label></div><div className="flex flex-wrap gap-2"><button onClick={() => onAction({ action: "approve", date: confirmedDate, time: confirmedTime })} className="bg-olive px-4 py-2 text-white">Approve at selected time</button><input aria-label="Optional rejection reason" placeholder="Optional rejection reason" value={reason} onChange={(event) => setReason(event.target.value)} className={`${input} max-w-xs`}/><button onClick={() => onAction({ action: "reject", reason })} className="border border-line px-4 py-2">Reject request</button><button onClick={() => onAction({ action: "cancel" })} className="border border-line px-4 py-2">Cancel request</button></div></div>}
-      {booking.status === "APPROVED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4"><WhatsAppActions href={href} tracked={Boolean(isTracked)} label="Notify customer on WhatsApp" onMark={() => onAction({ action: "mark-sent" })}/><button onClick={() => { const date = window.prompt("New date (YYYY-MM-DD)", booking.confirmedDate); const time = window.prompt("New start time (HH:MM)", booking.confirmedStart); if (date && time) onAction({ action: "reschedule", date, time }); }} className="border border-line px-4 py-2">Reschedule</button><button onClick={() => onAction({ action: "complete" })} className="border border-line px-4 py-2">Mark completed</button><button onClick={() => onAction({ action: "cancel" })} className="border border-line px-4 py-2">Cancel appointment</button></div>}
-      {booking.status === "REJECTED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4"><WhatsAppActions href={href} tracked={Boolean(isTracked)} label="Notify customer on WhatsApp" onMark={() => onAction({ action: "mark-sent" })}/></div>}
-      {booking.status === "COMPLETED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4"><WhatsAppActions href={href} tracked={Boolean(isTracked)} label="Send thank-you message" onMark={() => onAction({ action: "mark-sent" })}/></div>}
-      {(booking.whatsapp?.length ?? 0) > 0 && <ul className="mt-4 text-xs text-ink/60">{booking.whatsapp?.map((item, index) => <li key={`${item.type}-${index}`}>{item.type.replaceAll("_", " ")} · {item.status} · {new Date(item.at).toLocaleString("en-ZA", { timeZone: businessProfile.timezone })}</li>)}</ul>}
+    <section className="mt-5 border-t border-line pt-4"><h3 className="font-semibold">Email notifications</h3>{booking.notifications?.length ? <ul className="mt-2 space-y-2">{booking.notifications.map((notice) => <li key={notice._id} className="flex flex-wrap items-center gap-2 text-xs"><span>{notice.type.replaceAll("_", " ")} to {notice.recipient}</span><b className={notice.status === "SENT" ? "text-olive" : notice.status === "FAILED" ? "text-rose" : "text-ink/60"}>{notice.status}</b>{notice.sentAt && <span>Sent {new Date(notice.sentAt).toLocaleString("en-ZA", { timeZone: businessProfile.timezone })}</span>}{notice.lastFailure && <span>{notice.lastFailure}</span>}{notice.status === "FAILED" && <button onClick={() => onAction({ action: "retry-email", notificationId: notice._id })} className="border border-line px-3 py-1 underline">Retry email</button>}</li>)}</ul> : <p className="mt-2 text-xs text-ink/60">No email notification record.</p>}</section>
+    {booking.status === "PENDING" && <div className="mt-5 flex flex-col gap-3 border-t border-line pt-4"><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs">Approved date<input type="date" value={confirmedDate} onChange={(event) => setConfirmedDate(event.target.value)} className={input + " mt-1"}/></label><label className="text-xs">Approved start time<input type="time" value={confirmedTime} onChange={(event) => setConfirmedTime(event.target.value)} className={input + " mt-1"}/></label></div><div className="flex flex-wrap gap-2"><button onClick={() => onAction({ action: "approve", date: confirmedDate, time: confirmedTime })} className="bg-olive px-4 py-2 text-white">Approve at selected time</button><input aria-label="Optional rejection reason" placeholder="Optional rejection reason" value={reason} onChange={(event) => setReason(event.target.value)} className={input + " max-w-xs"}/><button onClick={() => onAction({ action: "reject", reason })} className="border border-line px-4 py-2">Reject request</button><button onClick={() => onAction({ action: "cancel" })} className="border border-line px-4 py-2">Cancel request</button></div></div>}
+    {booking.status === "APPROVED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4"><button onClick={() => { const date = window.prompt("New date (YYYY-MM-DD)", booking.confirmedDate); const time = window.prompt("New start time (HH:MM)", booking.confirmedStart); if (date && time) onAction({ action: "reschedule", date, time }); }} className="border border-line px-4 py-2">Reschedule</button><button onClick={() => onAction({ action: "complete" })} className="border border-line px-4 py-2">Mark completed</button><button onClick={() => onAction({ action: "cancel" })} className="border border-line px-4 py-2">Cancel appointment</button></div>}
     </div>
   </details>;
 }
-
-function WhatsAppActions({ href, tracked, label, onMark }: { href: string; tracked: boolean; label: string; onMark: () => void }) {
-  return <><a href={href} target="_blank" rel="noopener noreferrer" className="bg-olive px-4 py-2 text-white">{label}</a><button disabled={tracked} onClick={() => { if (window.confirm("Confirm that you sent this message manually in WhatsApp?")) onMark(); }} className="border border-line px-4 py-2 disabled:opacity-50">{tracked ? "Sent manually" : "Mark as sent"}</button></>;
-}
-
 function BookingCalendar({ date, onDate }: { date: string; onDate: (date: string) => void }) {
   const chosen = date || new Date().toLocaleDateString("en-CA", { timeZone: businessProfile.timezone });
   const [bookings, setBookings] = useState<Booking[]>([]); const [loadedDate, setLoadedDate] = useState("");
@@ -130,42 +118,105 @@ function BookingCalendar({ date, onDate }: { date: string; onDate: (date: string
 }
 
 function AvailabilityAndServices({ onMessage, onError }: { onMessage: (message: string) => void; onError: (message: string) => void }) {
-  const [weekly, setWeekly] = useState(blankWeekly()); const [exceptions, setExceptions] = useState<Exception[]>([]);
-  const [blockedDates, setBlockedDates] = useState<string[]>([]); const [blockedPeriods, setBlockedPeriods] = useState<BlockedPeriod[]>([]); const [breaks, setBreaks] = useState<TimeBlock[]>([]);
-  const [slotMinutes, setSlotMinutes] = useState(30); const [bufferMinutes, setBufferMinutes] = useState(0); const [newDate, setNewDate] = useState(""); const [blockDate, setBlockDate] = useState(""); const [blockStart, setBlockStart] = useState(""); const [blockEnd, setBlockEnd] = useState("");
+  const [weekly, setWeekly] = useState(blankWeekly());
+  const [closedDates, setClosedDates] = useState<string[]>([]);
+  const [legacyOpeningRules, setLegacyOpeningRules] = useState<{ date: string; periods: Period[] }[]>([]);
+  const [blockedPeriods, setBlockedPeriods] = useState<BlockedPeriod[]>([]);
+  const [breaks, setBreaks] = useState<TimeBlock[]>([]);
+  const [slotMinutes, setSlotMinutes] = useState(30); const [bufferMinutes, setBufferMinutes] = useState(0);
+  const [referenceDate, setReferenceDate] = useState(""); const [openTime, setOpenTime] = useState("09:00"); const [closeTime, setCloseTime] = useState("17:00"); const [closedDate, setClosedDate] = useState("");
+  const [blockDate, setBlockDate] = useState(""); const [blockStart, setBlockStart] = useState(""); const [blockEnd, setBlockEnd] = useState("");
   const [services, setServices] = useState<AdminService[]>([]); const [servicesLoaded, setServicesLoaded] = useState(false);
+  const weekday = referenceDate ? new Date(referenceDate + "T12:00:00Z").getUTCDay() : -1;
 
   useEffect(() => {
-    void fetch("/api/admin/availability").then(responseData).then(({ settings }) => {
-      if (!settings) return;
-      setWeekly(settings.weekly.map((day: Record<string, unknown>) => ({ weekday: Number(day.weekday), enabled: Boolean(day.enabled), periods: Array.isArray(day.periods) && day.periods.length ? day.periods : day.open && day.close ? [{ open: day.open, close: day.close }] : [blankPeriod()] })));
-      setExceptions((settings.exceptions || []).map((item: Record<string, unknown>) => ({ date: String(item.date), enabled: Boolean(item.enabled), periods: Array.isArray(item.periods) && item.periods.length ? item.periods : item.open && item.close ? [{ open: item.open, close: item.close }] : [] })));
-      setBlockedDates(settings.blockedDates || []); setBlockedPeriods(settings.blockedPeriods || []);
-      setBreaks(settings.breaks || (settings.breakStart && settings.breakEnd ? [{ start: settings.breakStart, end: settings.breakEnd }] : []));
-      setSlotMinutes(settings.slotMinutes); setBufferMinutes(settings.bufferMinutes);
+    void fetch("/api/admin/availability").then(responseData).then(({ settings, legacyOpeningRules: legacy = [] }) => {
+      if (settings) {
+        setWeekly((settings.weekly || blankWeekly()).map((day: Record<string, unknown>) => ({ weekday: Number(day.weekday), enabled: Boolean(day.enabled), periods: Array.isArray(day.periods) && day.periods.length ? day.periods : day.open && day.close ? [{ open: String(day.open), close: String(day.close) }] : [blankPeriod()] })));
+        const legacyClosed = (settings.exceptions || []).filter((item: Record<string, unknown>) => !item.enabled).map((item: Record<string, unknown>) => String(item.date));
+        setClosedDates([...new Set([...(settings.blockedDates || []), ...legacyClosed])]);
+        setBlockedPeriods(settings.blockedPeriods || []);
+        setBreaks(settings.breaks || (settings.breakStart && settings.breakEnd ? [{ start: settings.breakStart, end: settings.breakEnd }] : []));
+        setSlotMinutes(settings.slotMinutes || 30); setBufferMinutes(settings.bufferMinutes || 0);
+      }
+      setLegacyOpeningRules(legacy);
     }).catch((reason: Error) => onError(reason.message));
     void fetch("/api/admin/services").then(responseData).then(({ services: rows }) => setServices(rows)).catch((reason: Error) => onError(reason.message)).finally(() => setServicesLoaded(true));
   }, [onError]);
 
-  async function saveAvailability(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); onError("");
-    try { await responseData(await fetch("/api/admin/availability", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ weekly, exceptions, blockedDates, blockedPeriods, breaks, slotMinutes, bufferMinutes }) })); onMessage("Availability saved."); }
-    catch (reason) { onError(reason instanceof Error ? reason.message : "Availability could not be saved."); }
+  async function saveAvailability(nextWeekly = weekly, nextClosed = closedDates) {
+    onError("");
+    try {
+      await responseData(await fetch("/api/admin/availability", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ weekly: nextWeekly, blockedDates: nextClosed, blockedPeriods, breaks, slotMinutes, bufferMinutes }) }));
+      setWeekly(nextWeekly); setClosedDates(nextClosed); onMessage("Availability saved.");
+    } catch (reason) { onError(reason instanceof Error ? reason.message : "Availability could not be saved."); }
+  }
+  function dateForWeekday(target: number) {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: businessProfile.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const current = new Date(today + "T12:00:00Z"); current.setUTCDate(current.getUTCDate() + ((target - current.getUTCDay() + 7) % 7));
+    return current.toISOString().slice(0, 10);
+  }
+  async function saveRecurringDay(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (weekday < 0 || !openTime || !closeTime || closeTime <= openTime) { onError("Choose a date and a valid opening and closing time."); return; }
+    const next = weekly.map((item) => item.weekday === weekday ? { weekday, enabled: true, periods: [{ open: openTime, close: closeTime }] } : item);
+    await saveAvailability(next);
+  }
+  function editDay(day: Day) {
+    setReferenceDate(dateForWeekday(day.weekday));
+    const existing = day.periods || [];
+    setOpenTime(existing[0]?.open || "09:00");
+    setCloseTime(existing[existing.length - 1]?.close || "17:00");
+  }
+  async function removeDay(day: Day) {
+    const next = weekly.map((item) => item.weekday === day.weekday ? { ...item, enabled: false, periods: [blankPeriod()] } : item);
+    await saveAvailability(next);
+  }
+  async function toggleClosedDate(date: string, remove = false) {
+    const next = remove ? closedDates.filter((item) => item !== date) : [...new Set([...closedDates, date])];
+    await saveAvailability(weekly, next);
   }
 
-  return <div className="grid items-start gap-8 xl:grid-cols-[1fr_1fr]"><form onSubmit={saveAvailability} className="border border-line bg-white p-5 md:p-7"><h2 className="font-display text-4xl">Salon availability</h2><p className="mb-5 mt-2 text-sm text-ink/60">All times use {businessProfile.timezone}.</p>
-    <div className="space-y-4">{weekly.map((day, index) => <div key={day.weekday} className="border-b border-line pb-4"><div className="flex items-center justify-between"><h3 className="font-semibold">{dayNames[day.weekday]}</h3><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={day.enabled} onChange={(event) => setWeekly(weekly.map((item, i) => i === index ? { ...item, enabled: event.target.checked } : item))}/> Open</label></div>{day.enabled && <div className="mt-3 space-y-2">{day.periods.map((period, pIndex) => <div key={pIndex} className="grid grid-cols-[1fr_1fr_auto] gap-2"><label className="text-xs">Opens<input type="time" value={period.open} onChange={(event) => setWeekly(weekly.map((item, i) => i === index ? { ...item, periods: item.periods.map((p, j) => j === pIndex ? { ...p, open: event.target.value } : p) } : item))} className={`${input} mt-1`}/></label><label className="text-xs">Closes<input type="time" value={period.close} onChange={(event) => setWeekly(weekly.map((item, i) => i === index ? { ...item, periods: item.periods.map((p, j) => j === pIndex ? { ...p, close: event.target.value } : p) } : item))} className={`${input} mt-1`}/></label><button type="button" aria-label="Remove working period" onClick={() => setWeekly(weekly.map((item, i) => i === index ? { ...item, periods: item.periods.filter((_, j) => j !== pIndex) } : item))} className="mt-5 px-2 text-xs underline">Remove</button></div>)}<button type="button" onClick={() => setWeekly(weekly.map((item, i) => i === index ? { ...item, periods: [...item.periods, blankPeriod()] } : item))} className="mt-2 text-xs font-semibold text-olive underline">Add working period</button></div>}</div>)}</div>
-    <div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-sm">Appointment slot step (minutes)<input type="number" min={5} max={480} step={5} value={slotMinutes} onChange={(event) => setSlotMinutes(Number(event.target.value))} className={`${input} mt-2`}/></label><label className="text-sm">Buffer between visits (minutes)<input type="number" min={0} max={240} step={5} value={bufferMinutes} onChange={(event) => setBufferMinutes(Number(event.target.value))} className={`${input} mt-2`}/></label></div>
-    <PeriodEditor heading="Break periods" periods={breaks} onChange={setBreaks}/>
-    <div className="mt-6 border-t border-line pt-5"><h3 className="font-semibold">Date overrides</h3><div className="mt-3 flex flex-wrap gap-2"><input aria-label="Override date" type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} className={input}/><button type="button" onClick={() => { if (newDate) { setExceptions([...exceptions.filter((item) => item.date !== newDate), { date: newDate, enabled: true, periods: [blankPeriod()] }]); setNewDate(""); } }} className="border border-line px-3 text-sm">Add open date</button><button type="button" onClick={() => { if (newDate) { setExceptions([...exceptions.filter((item) => item.date !== newDate), { date: newDate, enabled: false, periods: [] }]); setNewDate(""); } }} className="border border-line px-3 text-sm">Close a date</button></div>
-      <div className="mt-3 space-y-3">{exceptions.map((item, index) => <div key={item.date} className="border-l-2 border-rose pl-3"><div className="flex items-center justify-between text-sm"><b>{item.date}</b><div className="flex gap-3"><button type="button" onClick={() => setExceptions(exceptions.filter((_, i) => i !== index))} className="text-xs underline">Remove</button></div></div>{item.enabled && item.periods.map((period, pIndex) => <div key={pIndex} className="mt-2 grid grid-cols-2 gap-2"><label className="text-xs">Opens<input type="time" value={period.open} onChange={(event) => setExceptions(exceptions.map((entry, i) => i === index ? { ...entry, periods: entry.periods.map((p, j) => j === pIndex ? { ...p, open: event.target.value } : p) } : entry))} className={`${input} mt-1`}/></label><label className="text-xs">Closes<input type="time" value={period.close} onChange={(event) => setExceptions(exceptions.map((entry, i) => i === index ? { ...entry, periods: entry.periods.map((p, j) => j === pIndex ? { ...p, close: event.target.value } : p) } : entry))} className={`${input} mt-1`}/></label></div>)}{item.enabled && <button type="button" onClick={() => setExceptions(exceptions.map((entry, i) => i === index ? { ...entry, periods: [...entry.periods, blankPeriod()] } : entry))} className="mt-2 text-xs text-olive underline">Add period</button>}</div>)}</div>
-    </div>
-    <div className="mt-6 border-t border-line pt-5"><h3 className="font-semibold">Blocked dates</h3><div className="mt-3 flex gap-2"><input aria-label="Date to block" type="date" value={blockDate} onChange={(event) => setBlockDate(event.target.value)} className={input}/><button type="button" onClick={() => { if (blockDate && !blockedDates.includes(blockDate)) setBlockedDates([...blockedDates, blockDate]); setBlockDate(""); }} className="border border-line px-3 text-sm">Block date</button></div><ul className="mt-2 space-y-1 text-xs">{blockedDates.map((date) => <li key={date} className="flex gap-3">{date}<button type="button" onClick={() => setBlockedDates(blockedDates.filter((item) => item !== date))} className="underline">Unblock</button></li>)}</ul>
-      <h4 className="mb-2 mt-4 text-sm font-medium">Blocked time periods</h4><div className="grid gap-2 sm:grid-cols-3"><input aria-label="Blocked period date" type="date" value={blockDate} onChange={(event) => setBlockDate(event.target.value)} className={input}/><input aria-label="Blocked period starts" type="time" value={blockStart} onChange={(event) => setBlockStart(event.target.value)} className={input}/><input aria-label="Blocked period ends" type="time" value={blockEnd} onChange={(event) => setBlockEnd(event.target.value)} className={input}/></div><button type="button" onClick={() => { if (blockDate && blockStart && blockEnd) setBlockedPeriods([...blockedPeriods, { date: blockDate, start: blockStart, end: blockEnd }]); setBlockStart(""); setBlockEnd(""); }} className="mt-2 border border-line px-3 py-2 text-xs">Add blocked period</button><ul className="mt-2 space-y-1 text-xs">{blockedPeriods.map((item, index) => <li key={`${item.date}-${item.start}-${index}`} className="flex gap-2">{item.date} · {item.start}–{item.end}<button type="button" onClick={() => setBlockedPeriods(blockedPeriods.filter((_, i) => i !== index))} className="underline">Remove</button></li>)}</ul>
-    </div><button className="mt-6 bg-olive px-5 py-3 text-sm text-white">Save availability</button>
-  </form><ServiceEditor services={services} loaded={servicesLoaded} setServices={setServices} onMessage={onMessage} onError={onError}/></div>;
-}
+  return <div className="grid items-start gap-8 xl:grid-cols-[1fr_1fr]">
+    <div className="space-y-6">
+      <section className="border border-line bg-white p-5 md:p-7">
+        <h2 className="font-display text-4xl">Regular weekly availability</h2>
+        <p className="mb-5 mt-2 text-sm text-ink/60">Select a reference date to set the hours that repeat every week for that weekday. All times use {businessProfile.timezone}.</p>
+        <div className="space-y-2">{weekly.filter((day) => day.enabled).sort((a, b) => ((a.weekday + 6) % 7) - ((b.weekday + 6) % 7)).map((day) => {
+          const periods = day.periods || [];
+          const label = periods.map((period) => period.open + "–" + period.close).join(", ");
+          return <div key={day.weekday} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3 text-sm"><span><b>{dayNames[day.weekday]}</b><span className="ml-3 text-ink/65">{label}</span>{periods.length > 1 && <span className="ml-2 text-xs text-rose">Multiple periods · review this schedule</span>}</span><span className="flex gap-3"><button type="button" onClick={() => editDay(day)} className="underline">Edit</button><button type="button" onClick={() => void removeDay(day)} className="underline">Remove</button></span></div>;
+        })}{!weekly.some((day) => day.enabled) && <p className="py-3 text-sm text-ink/60">No weekly hours saved yet.</p>}</div>
+        <form onSubmit={saveRecurringDay} className="mt-6 border-t border-line pt-5">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="text-xs">Reference date<input type="date" required value={referenceDate} onChange={(event) => setReferenceDate(event.target.value)} className={input + " mt-1"}/></label>
+            <label className="text-xs">Opens<input type="time" required value={openTime} onChange={(event) => setOpenTime(event.target.value)} className={input + " mt-1"}/></label>
+            <label className="text-xs">Closes<input type="time" required value={closeTime} onChange={(event) => setCloseTime(event.target.value)} className={input + " mt-1"}/></label>
+          </div>
+          {weekday >= 0 && <p className="mt-3 text-sm text-olive">This schedule will repeat every {dayNames[weekday]}.</p>}
+          <button type="submit" className="mt-4 bg-olive px-4 py-2.5 text-sm text-white">Save weekly schedule</button>
+        </form>
+      </section>
 
+      <section className="border border-line bg-white p-5 md:p-7">
+        <h2 className="font-display text-4xl">Closed dates</h2><p className="mt-2 text-sm text-ink/60">Choose specific dates when the studio will not operate. The normal weekly hours return the following week.</p>
+        <div className="mt-4 flex gap-2"><input aria-label="Date the studio is closed" type="date" value={closedDate} onChange={(event) => setClosedDate(event.target.value)} className={input}/><button type="button" onClick={() => { if (closedDate) void toggleClosedDate(closedDate).then(() => setClosedDate("")); }} className="shrink-0 border border-line px-3 text-sm">Add closed date</button></div>
+        <ul className="mt-3 space-y-2 text-sm">{closedDates.sort().map((date) => <li key={date} className="flex items-center justify-between border-b border-line py-2">{date}<button type="button" onClick={() => void toggleClosedDate(date, true)} className="underline">Remove</button></li>)}</ul>
+        {!closedDates.length && <p className="mt-3 text-xs text-ink/55">No closed dates added.</p>}
+      </section>
+
+      {legacyOpeningRules.length > 0 && <aside className="border-l-4 border-rose bg-white p-4 text-sm"><b>Review older opening schedules</b><p className="mt-1">These one-time opening rules are saved for review and do not create bookable hours. Recreate the relevant weekday as a recurring schedule if it should continue.</p><ul className="mt-2 list-inside list-disc">{legacyOpeningRules.map((rule) => <li key={rule.date}>{rule.date}: {rule.periods.map((period) => period.open + "–" + period.close).join(", ") || "hours not recorded"}</li>)}</ul></aside>}
+
+      <section className="border border-line bg-white p-5 md:p-7">
+        <h2 className="font-display text-3xl">Scheduling restrictions</h2><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Time between offered appointments (minutes)<input type="number" min={5} max={480} step={5} value={slotMinutes} onChange={(event) => setSlotMinutes(Number(event.target.value))} className={input + " mt-2"}/></label><label className="text-sm">Buffer between visits (minutes)<input type="number" min={0} max={240} step={5} value={bufferMinutes} onChange={(event) => setBufferMinutes(Number(event.target.value))} className={input + " mt-2"}/></label></div>
+        <PeriodEditor heading="Break periods" periods={breaks} onChange={setBreaks}/>
+        <div className="mt-5 border-t border-line pt-4"><h3 className="font-semibold">Blocked appointment periods</h3><div className="mt-3 grid gap-2 sm:grid-cols-3"><input aria-label="Blocked period date" type="date" value={blockDate} onChange={(event) => setBlockDate(event.target.value)} className={input}/><input aria-label="Blocked period starts" type="time" value={blockStart} onChange={(event) => setBlockStart(event.target.value)} className={input}/><input aria-label="Blocked period ends" type="time" value={blockEnd} onChange={(event) => setBlockEnd(event.target.value)} className={input}/></div><button type="button" onClick={() => { if (blockDate && blockStart && blockEnd) { setBlockedPeriods([...blockedPeriods, { date: blockDate, start: blockStart, end: blockEnd }]); setBlockStart(""); setBlockEnd(""); } }} className="mt-2 border border-line px-3 py-2 text-xs">Add blocked period</button><ul className="mt-2 space-y-1 text-xs">{blockedPeriods.map((item, index) => <li key={item.date + item.start + index} className="flex gap-2">{item.date} · {item.start}–{item.end}<button type="button" onClick={() => setBlockedPeriods(blockedPeriods.filter((_, i) => i !== index))} className="underline">Remove</button></li>)}</ul></div>
+        <button type="button" onClick={() => void saveAvailability()} className="mt-6 bg-olive px-5 py-3 text-sm text-white">Save scheduling settings</button>
+      </section>
+    </div>
+    <ServiceEditor services={services} loaded={servicesLoaded} setServices={setServices} onMessage={onMessage} onError={onError}/>
+  </div>;
+}
 function PeriodEditor({ heading, periods, onChange }: { heading: string; periods: TimeBlock[]; onChange: (periods: TimeBlock[]) => void }) {
   return <div className="mt-5 border-t border-line pt-5"><h3 className="font-semibold">{heading}</h3><div className="mt-3 space-y-2">{periods.map((period, index) => <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2"><label className="text-xs">Starts<input type="time" value={period.start} onChange={(event) => onChange(periods.map((item, i) => i === index ? { ...item, start: event.target.value } : item))} className={`${input} mt-1`}/></label><label className="text-xs">Ends<input type="time" value={period.end} onChange={(event) => onChange(periods.map((item, i) => i === index ? { ...item, end: event.target.value } : item))} className={`${input} mt-1`}/></label><button type="button" onClick={() => onChange(periods.filter((_, i) => i !== index))} className="mt-5 px-2 text-xs underline">Remove</button></div>)}</div><button type="button" onClick={() => onChange([...periods, { start: "13:00", end: "14:00" }])} className="mt-2 text-xs font-semibold text-olive underline">Add {heading.toLowerCase()}</button></div>;
 }
@@ -208,5 +259,15 @@ function ServiceEditor({ services, loaded, setServices, onMessage, onError }: { 
 }
 
 function ServiceFields({ value, onChange }: { value: Partial<AdminService>; onChange: (patch: Partial<AdminService>) => void }) {
-  return <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs">Service name<input required minLength={2} maxLength={100} value={value.name || ""} onChange={(event) => onChange({ name: event.target.value })} className={`${input} mt-1`}/></label><label className="text-xs">Category<input maxLength={80} value={value.category || ""} onChange={(event) => onChange({ category: event.target.value })} className={`${input} mt-1`}/></label><label className="text-xs sm:col-span-2">Short description<textarea maxLength={500} rows={2} value={value.description || ""} onChange={(event) => onChange({ description: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-white p-3 text-sm"/></label><label className="text-xs sm:col-span-2">Full description<textarea maxLength={3000} rows={4} value={value.fullDescription || ""} onChange={(event) => onChange({ fullDescription: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-white p-3 text-sm"/></label><label className="text-xs">Minimum price (R)<input type="number" min={0} step="0.01" value={value.minimumPrice ?? ""} onChange={(event) => onChange({ minimumPrice: event.target.value === "" ? undefined : Number(event.target.value) })} className={`${input} mt-1`}/></label><label className="text-xs">Maximum price (R)<input type="number" min={0} step="0.01" value={value.maximumPrice ?? ""} onChange={(event) => onChange({ maximumPrice: event.target.value === "" ? undefined : Number(event.target.value) })} className={`${input} mt-1`}/></label><label className="text-xs">Display price override<input maxLength={100} placeholder="Optional e.g. From R250" value={value.priceLabel || ""} onChange={(event) => onChange({ priceLabel: event.target.value })} className={`${input} mt-1`}/></label><label className="text-xs">Duration (minutes)<input type="number" min={1} max={600} value={value.durationMinutes ?? ""} onChange={(event) => onChange({ durationMinutes: event.target.value === "" ? undefined : Number(event.target.value) })} className={`${input} mt-1`}/></label><label className="text-xs">Display order<input type="number" min={0} max={10000} value={value.displayOrder ?? 0} onChange={(event) => onChange({ displayOrder: Number(event.target.value) })} className={`${input} mt-1`}/></label></div>;
+  return <div className="grid gap-3 sm:grid-cols-2">
+    <label className="text-xs">Service name<input required minLength={2} maxLength={100} value={value.name || ""} onChange={(event) => onChange({ name: event.target.value })} className={input + " mt-1"}/></label>
+    <label className="text-xs">Category<input maxLength={80} value={value.category || ""} onChange={(event) => onChange({ category: event.target.value })} className={input + " mt-1"}/></label>
+    <label className="text-xs">Appointment type<select value={value.classification || "GENERAL"} onChange={(event) => onChange({ classification: event.target.value as AdminService["classification"] })} className={input + " mt-1"}><option value="LASHES">Lashes · 45 minutes</option><option value="NAILS">Nails · 2 hours</option><option value="TOES">Toes · 2 hours</option><option value="GENERAL">Other · 2 hours</option></select><span className="mt-1 block text-[11px] text-ink/55">Appointment length is set by the studio’s scheduling rules.</span></label>
+    <label className="text-xs">Display order<input type="number" min={0} max={10000} value={value.displayOrder ?? 0} onChange={(event) => onChange({ displayOrder: Number(event.target.value) })} className={input + " mt-1"}/></label>
+    <label className="text-xs sm:col-span-2">Short description<textarea maxLength={500} rows={2} value={value.description || ""} onChange={(event) => onChange({ description: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-white p-3 text-sm"/></label>
+    <label className="text-xs sm:col-span-2">Full description<textarea maxLength={3000} rows={4} value={value.fullDescription || ""} onChange={(event) => onChange({ fullDescription: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-white p-3 text-sm"/></label>
+    <label className="text-xs">Minimum price (R)<input type="number" min={0} step="0.01" value={value.minimumPrice ?? ""} onChange={(event) => onChange({ minimumPrice: event.target.value === "" ? undefined : Number(event.target.value) })} className={input + " mt-1"}/></label>
+    <label className="text-xs">Maximum price (R)<input type="number" min={0} step="0.01" value={value.maximumPrice ?? ""} onChange={(event) => onChange({ maximumPrice: event.target.value === "" ? undefined : Number(event.target.value) })} className={input + " mt-1"}/></label>
+    <label className="text-xs">Display price override<input maxLength={100} placeholder="Optional e.g. From R250" value={value.priceLabel || ""} onChange={(event) => onChange({ priceLabel: event.target.value })} className={input + " mt-1"}/></label>
+  </div>;
 }

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     await connectDb(); const { searchParams } = new URL(request.url); const status = searchParams.get("status"); const query: Record<string, unknown> = {};
     if (status && ["PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].includes(status)) query.status = status;
     const customer = (searchParams.get("customer") ?? "").trim().slice(0, 100); const service = (searchParams.get("service") ?? "").trim().slice(0, 100); const date = searchParams.get("date") ?? "";
-    if (customer) query.$or = [{ "customer.name": { $regex: safeRegex(customer), $options: "i" } }, { "customer.phone": { $regex: safeRegex(customer), $options: "i" } }, { reference: { $regex: safeRegex(customer), $options: "i" } }];
+    if (customer) query.$or = [{ "customer.name": { $regex: safeRegex(customer), $options: "i" } }, { "customer.email": { $regex: safeRegex(customer), $options: "i" } }, { "customer.phone": { $regex: safeRegex(customer), $options: "i" } }, { reference: { $regex: safeRegex(customer), $options: "i" } }];
     if (service) query["service.name"] = service;
     if (/^\d{4}-\d{2}-\d{2}$/.test(date)) query.$and = [...((query.$and as unknown[]) || []), { $or: [{ preferredDate: date }, { confirmedDate: date }] }];
     const page = Number(searchParams.get("page") || 1); const limit = 50;

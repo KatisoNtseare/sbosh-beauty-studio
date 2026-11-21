@@ -3,6 +3,7 @@ import mongoose, { Schema } from "mongoose";
 const availabilitySchema = new Schema({
   weekly: [{ weekday: { type: Number, min: 0, max: 6 }, open: String, close: String, periods: [{ open: String, close: String }], enabled: Boolean }],
   exceptions: [{ date: { type: String, required: true }, enabled: Boolean, open: String, close: String, periods: [{ open: String, close: String }] }],
+  legacyOpeningRules: [{ date: String, periods: [{ open: String, close: String }] }],
   blockedDates: [{ type: String }],
   blockedPeriods: [{ date: { type: String, required: true }, start: String, end: String }],
   breaks: [{ start: String, end: String }],

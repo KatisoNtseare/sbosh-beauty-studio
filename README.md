@@ -1,90 +1,85 @@
 # Sbosh's Beauty Studio
 
-Responsive nail studio website and appointment request/admin system for the Bram Fischerville, Roodepoort salon. Customers request a service and preferred time; the studio reviews the request and confirms it manually.
+Appointment requests and salon management for the Bram Fischerville, Roodepoort studio. Customers request a service and preferred time; the studio reviews every request and confirms it by email.
 
-## Stack
+## Stack and structure
 
-- Next.js 16 App Router, React 19, TypeScript
+- Next.js 16 App Router, React 19 and TypeScript
 - MongoDB Atlas with Mongoose
 - Tailwind CSS 4 and React Icons
-- Vitest for unit and schema tests
-- Cloudinary REST API for service images (optional; server-side credentials only)
+- Vitest for unit and replica-set integration tests
+- Cloudinary REST API for optional service images
+- Zoho SMTP through Nodemailer for booking email
 
-## Project structure
-
-```text
-src/app/                  Public pages, admin page, route handlers
-src/components/           Public website, booking and admin UI
-src/lib/                  Brand profile, database, domain and scheduling helpers
-src/models/                MongoDB service, booking, schedule, reservation and rate-limit models
-public/images/            Local website imagery and fallbacks
-tests/                     Unit, scheduling and schema tests
-```
+Application routes and UI live in `src/app` and `src/components`; MongoDB models are in `src/models`, and scheduling, email, booking integrity and timezone helpers are in `src/lib`.
 
 ## Install and run
 
-1. Install Node.js 20.9 or newer and MongoDB Atlas credentials for a development database.
-2. Copy `.env.example` to `.env.local` and set each required value. Keep `.env.local` untracked.
-3. Run `npm install`, `npm run dev`, then open `http://localhost:3000`.
-4. Sign in at `/admin`, configure service durations and opening hours, then test a booking request.
-
-## Environment variables
-
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `MONGODB_URI` | Yes | MongoDB connection string for this environment/database |
-| `AUTH_SECRET` | Yes | Random server secret of at least 32 characters for signing admin sessions |
-| `ADMIN_EMAIL` | Yes | Initial administrator login and audit identity |
-| `ADMIN_PASSWORD` | Yes for seeding | Initial administrator password, hashed before storage |
-| `ADMIN_NAME` | No | Name shown in admin history; defaults to the admin email |
-| `APP_TIMEZONE` | No | Salon timezone; scheduling is fixed to `Africa/Johannesburg` |
-| `NEXT_PUBLIC_APP_URL` | No | Public application URL |
-| `TRUST_PROXY_HEADERS` | No | Set to `true` only when a trusted ingress overwrites the client IP header and blocks direct origin access; defaults to `false` |
-| `MONGODB_TEST_URI` | Integration tests only | Explicit URI to an empty, isolated database named `sbosh_beauty_test`; never falls back to `MONGODB_URI` |
-| `CLOUDINARY_CLOUD_NAME` | No | Cloudinary account name for service image uploads |
-| `CLOUDINARY_API_KEY` | No | Cloudinary API key, used by server routes |
-| `CLOUDINARY_API_SECRET` | No | Cloudinary API secret, never sent to the browser |
-
-Cloudinary image management is disabled unless all three Cloudinary values are present. The application accepts JPG, PNG, and WebP service photos up to 5 MB, validates the file signature on the server, and sends uploads/deletes to Cloudinary from a protected route. It does not add another image provider.
-
-## Admin setup and service management
-
-Admin APIs require an HTTP-only, `SameSite=Strict` signed session cookie. Sessions expire after eight hours. Admin sign-in is limited through a MongoDB-backed fixed-window limiter. To seed or reset the administrator from `.env.local`, run `npm run seed:admin`. The script upserts the configured email, name and scrypt password hash into the `admins` collection; it never stores the plaintext password. Login then checks the database account. Keep `AUTH_SECRET` configured for signing sessions. Never use production credentials in local tests.
-
-The first service-menu request on an empty database inserts inactive setup templates (Manicure, Gel Nails, Overlay, Nail Repair, and Buff & Shine). Treat these names as placeholders: prices, descriptions and durations start blank, and the templates are not publicly bookable. In `/admin`, review or replace them with the actual menu, configure price and duration, then activate only approved services. Existing database services are not silently changed. The owner can create, edit, order, activate/deactivate, or delete services, including short and full descriptions, category, price range, duration, and image. A service with historical bookings is archived rather than deleted. Each booking stores a service snapshot so later edits do not change its history.
-
-Only active services appear publicly. Book Now preselects the chosen service. A service cannot accept booking preferences until its duration is configured.
+1. Use Node.js 20.9 or newer and a development MongoDB database.
+2. Copy `.env.example` to `.env.local`, then set local development values. Keep `.env.local` private.
+3. Run `npm install`, then `npm run dev`.
+4. Open `http://localhost:3000`. Sign in at `/admin` after seeding the administrator with `npm run seed:admin`.
 
 ## Customer booking flow
 
-Customers submit a name, WhatsApp number, optional email, selected service, preferred available date/time, and a full description (up to 5,000 characters). The server normalizes South African numbers to international format, retrieves service details from MongoDB, validates current availability, saves the original service snapshot, and creates a unique reference with `PENDING` status. A request is not a confirmed appointment.
+Customers select a public service and use **Book now** to open `/cart?service=<id>`. The service is preselected and shown with its image, description and price. Customers choose a date, then select a time returned by the server's current availability calculation. Name and email are required; phone and notes are optional.
 
-The public endpoint allows five requests per source IP per minute through MongoDB-backed rate limiting. Next.js 16 no longer exposes `request.ip`. Forwarded headers are ignored by default. Set `TRUST_PROXY_HEADERS=true` only after the reverse proxy overwrites a single valid `X-Forwarded-For` or `X-Real-IP` value and the application origin cannot be reached directly; otherwise clients could spoof the header. Without a verified proxy, requests share the safe `unknown` rate-limit bucket. All API errors returned to visitors are generic and do not include database details.
+Each request is stored as `PENDING` and receives a sequential reference such as `#SBS1`. A request is not an appointment confirmation. The studio reviews it in `/admin` and approves it at the requested or another available time, or rejects it with an optional reason. Customers receive the decision by email. Pending requests do not reserve appointment time. Approval rechecks availability and retains the MongoDB atomic reservation and overlap protection.
 
-## Availability and scheduling
+There is no payment step. Email is the official booking communication channel; phone is retained for reference only.
 
-In `/admin`, configure each weekday with one or more working periods, shared breaks, per-date open/closed overrides, blocked dates, blocked time periods, service durations, slot step, and buffer. Availability is stored in MongoDB; no salon hours or treatment durations are hard-coded. The admin calendar separates confirmed visits from pending requests.
+## Zoho SMTP configuration
 
-Date keys use `YYYY-MM-DD` in `Africa/Johannesburg` and are not converted through UTC for display or matching. The scheduler subtracts breaks, blocked intervals, existing reservations, and configured buffers, using each selected service’s trusted duration.
+Use the existing private environment keys in `.env.local` and the hosting secret store:
 
-## Collision protection and MongoDB
+| Variable | Purpose |
+| --- | --- |
+| `ZOHO_SMTP_HOST` | Zoho SMTP host for the account and region |
+| `ZOHO_SMTP_PORT` | SMTP port; port 465 uses implicit TLS, other configured ports use STARTTLS |
+| `ZOHO_SMTP_USER` | Zoho mailbox / authenticated sender |
+| `ZOHO_SMTP_PASS` | Zoho mailbox password or app-specific password |
+| `CONTACT_RECEIVER` | Administrator booking notification recipient; falls back to `ADMIN_EMAIL` |
+| `NEXT_PUBLIC_APP_URL` | Public application URL used for the dashboard link |
+| `ADMIN_EMAIL` | Administrator sign-in identity and fallback notification recipient |
 
-Collections:
+An administrator email is recorded on each booking before delivery. SMTP delivery happens after booking state is saved. Failed notices remain visible in the dashboard and can be retried; delivery errors do not undo a booking or approval. Notification records prevent routine duplicate sends and track attempts, delivery time and a safe failure message.
 
-- `Admin`: normalized login email, display name, active flag and salted scrypt password hash.
-- `Service`: customer-facing descriptions, image references, category, price/duration and lifecycle.
-- `Booking`: customer request, service snapshot, status/audit history and manual WhatsApp records.
-- `Availability`: weekly periods, exceptions, blocked dates/times, breaks and buffers.
-- `ReservationDay`: one document per salon-local date with confirmed appointment intervals.
-- `rate_limits`: shared fixed-window request counters with TTL cleanup.
+## Availability and appointment lengths
 
-Each reservation write uses a conditional atomic update on the unique date document. It rejects intervals that intersect using `newStart < existingEnd && newEnd > existingStart`; buffer minutes are included in the stored interval. Approval, rescheduling, cancellation and completion use MongoDB transactions when the deployment supports them. On standalone MongoDB, the app falls back to the conditional single-document reservation write plus a guarded booking-status update and compensating release. Pending requests never reserve a time.
+In `/admin`, select a reference date to identify a weekday, set opening and closing times, and save a recurring weekly schedule. The interface states which weekday will repeat. Editing a weekday replaces its current schedule. Add specific dates under **Closed dates**; the recurring hours resume the following week. The old one-off opening interface is removed. Old closed dates are retained, and old one-off openings are preserved for review by the migration.
 
-The MongoDB deployment must support transactions for atomic cross-document state changes; MongoDB Atlas does. The fallback still prevents concurrent overlaps, though a process crash between the reservation and booking updates can leave a stale interval that needs admin/database cleanup.
+Scheduling uses `Africa/Johannesburg` calendar dates and times. It respects weekly periods, closed dates, breaks, blocked periods, approved reservations and the configured slot interval and buffer. A time is offered only if the full appointment fits before closing.
 
-## Manual WhatsApp communication
+Appointment length is derived on the server from the service classification:
 
-No WhatsApp API, automated messages, or email integration is used. The admin page creates a prefilled `wa.me` URL only for the matching status: approved confirmation, rejected notification, or completed thank-you. International phone numbers and URL-encoded message text are used. Opening WhatsApp is not counted as sent. The administrator must confirm manually; the server then stores the booking ID, message type/content, administrator ID, timestamp, and `SENT_MANUALLY` status, and prevents a duplicate record for that message type.
+- Lashes: 45 minutes
+- Nails: 120 minutes
+- Toes: 120 minutes
+- Other services: 120 minutes
+
+The admin service editor exposes the classification, not an editable duration. Legacy duration values are ignored for new requests. Existing booking snapshots and reservation intervals remain available for history.
+
+## Admin and service setup
+
+Admin APIs require an HTTP-only, `SameSite=Strict` signed session cookie. Sessions expire after eight hours; sign-in uses a MongoDB-backed fixed-window limiter. Seed or reset the administrator from `.env.local` with `npm run seed:admin`; the password is stored as a salted scrypt hash.
+
+On an empty service collection, the public service menu creates inactive setup templates for Manicure, Gel Nails, Overlay, Nail Repair and Buff & Shine. Review names, classification, prices, descriptions and images in `/admin`, and activate only approved services. These templates are not publicly bookable until activated. Services with booking history are archived rather than deleted. Booking snapshots are not rewritten when a service is edited.
+
+Cloudinary image management is disabled unless all three Cloudinary settings are present. JPG, PNG and WebP uploads are limited to 5 MB and validated server-side.
+
+The public booking endpoint limits requests to five per source IP per minute. Forwarded headers are ignored unless `TRUST_PROXY_HEADERS=true` is configured behind a trusted proxy that overwrites them and prevents direct origin access.
+
+## Safe data migration
+
+After taking a database backup, run the idempotent migration:
+
+```powershell
+npm run migrate:booking-workflow
+```
+
+It classifies existing services using their category and name, copies legacy closed-date exceptions into `blockedDates`, preserves legacy one-off opening rules in `legacyOpeningRules` for administrator review, migrates old break fields, and clears the obsolete exceptions. It never resets collections or changes historical bookings or reservations. Re-running it is safe.
+
+After migration, review the warning in the admin availability screen and add any useful regular weekdays as recurring schedules. Existing service duration values remain stored for audit but are no longer used to calculate new appointments.
 
 ## Tests and checks
 
@@ -96,26 +91,20 @@ npx tsc --noEmit
 npm run build
 ```
 
-The unit test suite covers input validation, service snapshots/lifecycle policy, booking idempotency fingerprints, dashboard statistics, password hashing, allowed status/message mapping, phone normalization, message encoding, salon-local slot calculations, timezone boundaries, breaks/exceptions/blocked intervals, spoofed proxy headers, overlap rules, and declared MongoDB indexes.
-
-MongoDB integration tests use the actual models, route handlers and atomic reservation operations. They require an explicitly configured, empty replica-set database named `sbosh_beauty_test`; they never use `MONGODB_URI` and never drop a database or collection. Configure a local replica set, then run:
+Integration tests require an explicitly configured, empty replica-set database named `sbosh_beauty_test` in `MONGODB_TEST_URI`. They never fall back to `MONGODB_URI` or drop collections. Configure a dedicated local test database and run:
 
 ```powershell
 $env:MONGODB_TEST_URI = "mongodb://127.0.0.1:27017/sbosh_beauty_test?replicaSet=rs0"
 npm run test:integration
 ```
 
-The integration suite refuses a missing URI, a different database name, or a non-empty test database. It deletes only the records it created. Never point this variable at production Atlas.
+Never use a production database for tests.
 
-## Production checklist
+## Production configuration
 
-- Use a dedicated production Atlas database and allow network access only from the deployment environment.
-- Configure a replica-set/sharded MongoDB deployment for transactions.
-- Configure `TRUST_PROXY_HEADERS=true` only after verifying the deployed reverse proxy overwrites the client IP header and prevents direct origin access.
-- Set admin credentials, a random 32+ character `AUTH_SECRET`, and Cloudinary server secrets in the platform secret store.
-- Configure the reverse proxy to sanitize/overwrite `X-Forwarded-For` and use HTTPS.
-- Set and review service durations, prices, photos, opening periods, breaks, buffers, exceptions, and blocked intervals in `/admin`.
-- Run tests, lint, type checks, and production build before release.
-- Configure `TRUST_PROXY_HEADERS=true` only after verifying that the deployed reverse proxy overwrites the client IP header and prevents direct origin access.
-- Verify service image upload, booking submission, approval, rescheduling, WhatsApp tracking, cancellation, and completion against a non-production database.
-- Back up MongoDB regularly and define retention/access rules for customer contact information.
+- Set a dedicated production MongoDB URI, replica-set transactions, admin credentials and a random 32+ character `AUTH_SECRET` in the deployment secret store.
+- Configure Zoho SMTP, `CONTACT_RECEIVER`, and the public `NEXT_PUBLIC_APP_URL`.
+- Configure HTTPS and a trusted proxy before enabling proxy header trust.
+- Review real service pricing, classifications, descriptions, photos, weekly schedules, breaks and buffers in the admin area.
+- Run migration after backup, review preserved one-off opening rules, and test booking approval/rejection and email delivery against non-production services first.
+- Back up the database and define retention/access rules for customer information.

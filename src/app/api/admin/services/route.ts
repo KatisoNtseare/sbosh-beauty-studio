@@ -3,11 +3,15 @@ import { connectDb } from "@/lib/mongodb";
 import { validAdminSession } from "@/lib/admin-auth";
 import Service from "@/models/Service";
 import Booking from "@/models/Booking";
-import { serviceRemovalAction, validateServiceFields } from "@/lib/domain";
+import { classifyService, serviceRemovalAction, validateServiceFields } from "@/lib/domain";
 
 export async function GET() {
   if (!(await validAdminSession())) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  try { await connectDb(); return Response.json({ services: await Service.find().sort({ name: 1 }).lean() }); }
+  try {
+    await connectDb();
+    const services = await Service.find().sort({ name: 1 }).lean();
+    return Response.json({ services: services.map((service) => ({ ...service, classification: service.classification || classifyService(service.category, service.name) })) });
+  }
   catch { return Response.json({ error: "Could not load services." }, { status: 503 }); }
 }
 export async function POST(request: Request) {

@@ -1,24 +1,28 @@
 import mongoose, { Schema } from "mongoose";
 
+const notificationSchema = new Schema({
+  type: { type: String, enum: ["ADMIN_NEW_BOOKING", "CUSTOMER_APPROVED", "CUSTOMER_REJECTED"], required: true },
+  recipient: { type: String, default: "" },
+  subject: { type: String, required: true },
+  status: { type: String, enum: ["PENDING", "SENDING", "SENT", "FAILED"], default: "PENDING" },
+  attemptCount: { type: Number, default: 0 },
+  sentAt: Date,
+  lastFailure: { type: String, maxlength: 500 },
+  attemptedAt: Date,
+}, { _id: true });
+
 const bookingSchema = new Schema({
   reference: { type: String, required: true, unique: true, index: true },
-  customer: { name: { type: String, required: true }, phone: { type: String, required: true }, email: String },
-  service: { id: { type: Schema.Types.ObjectId, required: true }, name: { type: String, required: true }, description: String, fullDescription: String, image: String, priceLabel: String, minimumPrice: Number, maximumPrice: Number, category: String, durationMinutes: Number },
-  description: { type: String, required: true, maxlength: 5000 },
+  customer: { name: { type: String, required: true }, phone: { type: String, default: "" }, email: { type: String, lowercase: true, trim: true } },
+  service: { id: { type: Schema.Types.ObjectId, required: true }, name: { type: String, required: true }, description: String, fullDescription: String, image: String, priceLabel: String, minimumPrice: Number, maximumPrice: Number, category: String, classification: { type: String, enum: ["LASHES", "NAILS", "TOES", "GENERAL"] }, durationMinutes: Number },
+  description: { type: String, default: "", maxlength: 5000 },
   preferredDate: { type: String, required: true }, preferredTime: { type: String, required: true },
   confirmedDate: String, confirmedStart: String, confirmedEnd: String,
   status: { type: String, enum: ["PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED"], default: "PENDING", index: true },
   rejectionReason: String,
   approvedAt: Date, completedAt: Date, cancelledAt: Date, decidedBy: String,
   history: [{ status: String, at: Date, by: String, note: String }],
-  whatsapp: [{
-    bookingId: { type: Schema.Types.ObjectId, required: true },
-    type: { type: String, enum: ["BOOKING_CONFIRMATION", "REJECTION_NOTIFICATION", "THANK_YOU"], required: true },
-    adminId: { type: String, required: true },
-    at: { type: Date, default: Date.now },
-    status: { type: String, enum: ["SENT_MANUALLY"], required: true },
-    content: { type: String, required: true, maxlength: 3000 },
-  }],
+  notifications: { type: [notificationSchema], default: [] },
   idempotencyKey: { type: String, unique: true, sparse: true },
   idempotencyFingerprint: { type: String, select: false },
 }, { timestamps: true });

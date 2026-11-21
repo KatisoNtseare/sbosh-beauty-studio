@@ -1,3 +1,9 @@
+import { vi } from "vitest";
+
+vi.mock("nodemailer", () => ({
+  default: { createTransport: () => ({ sendMail: vi.fn(async () => ({ messageId: "integration-test" })) }) },
+}));
+
 const testUri = process.env.MONGODB_TEST_URI;
 if (!testUri) throw new Error("MONGODB_TEST_URI is required. Integration tests never fall back to MONGODB_URI.");
 

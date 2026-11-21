@@ -9,7 +9,8 @@ const serviceSchema = new Schema({
   priceLabel: { type: String, default: "" },
   minimumPrice: { type: Number, min: 0 },
   maximumPrice: { type: Number, min: 0 },
-  durationMinutes: { type: Number, min: 1 },
+  classification: { type: String, enum: ["LASHES", "NAILS", "TOES", "GENERAL"], default: "GENERAL" },
+  durationMinutes: { type: Number, min: 1 }, // Legacy data only; scheduling ignores this field.
   category: { type: String, default: "Nail services", maxlength: 80 },
   displayOrder: { type: Number, default: 0 },
   active: { type: Boolean, default: true },
@@ -17,5 +18,4 @@ const serviceSchema = new Schema({
 }, { timestamps: true });
 
 serviceSchema.index({ active: 1, displayOrder: 1, name: 1 });
-
 export default mongoose.models.Service ?? mongoose.model("Service", serviceSchema);
