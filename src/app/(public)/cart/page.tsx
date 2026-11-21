@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function CartPage() {
   return <main className="mx-auto max-w-7xl px-6 md:px-16">
     <PageIntro eyebrow="Appointment request" title="Your booking request." lead="Choose a preferred date and available time. The studio will review your request and contact you about approval."/>
-    <p className="pb-1 text-xs text-muted-text">All appointment times use {businessProfile.timezone}.</p>
-    <Suspense fallback={<p className="py-10 text-sm text-muted-text">Preparing your booking cart…</p>}><BookingForm/></Suspense>
+    <p className="pb-1 text-xs text-dark-text/70">All appointment times use {businessProfile.timezone}.</p>
+    <Suspense fallback={<p className="py-10 text-sm text-dark-text/70">Preparing your booking cart…</p>}><BookingForm/></Suspense>
   </main>;
 }

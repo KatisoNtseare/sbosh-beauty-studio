@@ -1,18 +1,25 @@
 @import "tailwindcss";
 @import "react-toastify/dist/ReactToastify.css";
 
+/* Pink on a warm beige studio canvas. */
+
 @theme inline {
-  --color-hot-pink: #e83e8c;
-  --color-rose-pink: #f28cb8;
-  --color-soft-blush: #fff0f6;
-  --color-pale-pink: #fce4ef;
-  --color-brand-white: #ffffff;
-  --color-deep-berry: #70264f;
-  --color-dark-plum: #39202f;
-  --color-brand-border: #f1c6d9;
-  --color-muted-text: #705b66;
-  --color-success: #16844a;
-  --color-warning: #946200;
+  --color-charcoal: #f3ede4;
+  --color-surface: #fcf9f5;
+  --color-raised-surface: #eadfd8;
+  --color-silver: #9f2855;
+  --color-accent-yellow: #c21868;
+  --color-ink-on-accent: #f3ede4;
+  --color-brand-pink: #c21868;
+  --color-strong-pink: #9f174d;
+  --color-pale-blush: #f3ede4;
+  --color-soft-pink: #ead7dd;
+  --color-brand-white: #f3ede4;
+  --color-deep-berry: #84234c;
+  --color-dark-text: #78243f;
+  --color-soft-border: #dec8cf;
+  --color-success: #247a49;
+  --color-warning: #855500;
   --color-error: #b42348;
   --font-display: var(--font-cormorant), serif;
   --font-sans: var(--font-montserrat), sans-serif;
@@ -33,23 +40,24 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: var(--color-brand-white);
-  color: var(--color-dark-plum);
+  background: var(--color-charcoal);
+  color: var(--color-dark-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 .Toastify__toast {
-  border: 1px solid var(--color-brand-border);
+  border: 1px solid var(--color-soft-border);
   border-radius: 0.8rem;
-  color: var(--color-dark-plum);
+  background: var(--color-surface);
+  color: var(--color-dark-text);
   font-family: var(--font-sans);
   font-size: 0.875rem;
-  box-shadow: 0 12px 36px rgb(46 44 39 / 0.14);
+  box-shadow: 0 12px 36px rgb(92 35 57 / 0.12);
 }
 
 .Toastify__toast--success { border-color: var(--color-success); }
-.Toastify__toast--info { border-color: var(--color-hot-pink); }
+.Toastify__toast--info { border-color: var(--color-accent-yellow); }
 .Toastify__toast--warning { border-color: var(--color-warning); }
 .Toastify__toast--error { border-color: var(--color-error); }
 
@@ -70,29 +78,18 @@ textarea:disabled {
   cursor: not-allowed;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button,
-input,
-textarea {
-  font: inherit;
-}
-
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--color-deep-berry);
+  outline: 2px solid var(--color-accent-yellow);
   outline-offset: 3px;
 }
 
 ::selection {
-  background: var(--color-deep-berry);
-  color: var(--color-brand-white);
+  background: var(--color-accent-yellow);
+  color: var(--color-ink-on-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {

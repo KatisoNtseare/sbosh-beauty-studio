@@ -5,8 +5,8 @@ export const buttonStyles = cva(
   {
     variants: {
       variant: {
-        solid: "bg-hot-pink text-white shadow-sm hover:bg-deep-berry",
-        outline: "border-[1.5px] border-hot-pink text-deep-berry hover:bg-soft-blush",
+        solid: "bg-strong-pink text-charcoal shadow-sm hover:bg-raised-surface hover:text-silver",
+        outline: "border-[1.5px] border-brand-pink text-deep-berry hover:bg-pale-blush",
       },
     },
     defaultVariants: { variant: "solid" },

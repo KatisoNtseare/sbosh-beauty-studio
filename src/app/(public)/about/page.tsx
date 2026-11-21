@@ -35,28 +35,27 @@ export default function AboutPage() {
         lead="Nail care can be more than the finished look. It can be a chance to slow down, feel cared for and leave with a little more ease."
       />
 
-      <section aria-label="What matters to us" className="grid gap-4 pt-8 md:grid-cols-3 md:gap-5 md:pt-10">
+      <section aria-label="What matters to us" className="mt-9 grid divide-y divide-soft-border border-y border-soft-border md:mt-12 md:grid-cols-3 md:divide-x md:divide-y-0">
         {principles.map((principle) => (
-          <article key={principle.title} className="rounded-2xl border border-soft-blush bg-white p-6 shadow-sm md:p-7">
-            <span aria-hidden="true" className="mb-6 block size-2.5 rounded-full bg-rose-pink shadow-[0_0_0_6px_var(--color-soft-blush)]" />
+          <article key={principle.title} className="py-5 md:px-6 md:py-7 first:md:pl-0 last:md:pr-0">
             <h2 className="font-display text-3xl font-semibold text-deep-berry">{principle.title}</h2>
-            <p className="mt-3 max-w-sm text-sm leading-6 text-dark-plum/75">{principle.description}</p>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-dark-text/75">{principle.description}</p>
           </article>
         ))}
       </section>
 
-      <section className="mt-8 grid gap-8 rounded-3xl bg-deep-berry px-6 py-8 text-white shadow-lg shadow-deep-berry/10 md:grid-cols-[1fr_auto] md:items-center md:px-9">
+      <section className="mt-8 grid gap-6 bg-charcoal px-6 py-8 text-silver md:grid-cols-[1fr_auto] md:items-center md:px-9">
         <div>
-          <p className="mb-2 text-xs font-semibold text-soft-blush">Visit the studio</p>
+          <p className="mb-2 text-xs font-semibold text-pale-blush">Visit the studio</p>
           <h2 className="font-display text-3xl font-medium md:text-4xl">Come see us in Roodepoort.</h2>
-          <a href={studioContact.mapHref} target="_blank" rel="noreferrer" className="mt-3 block max-w-md text-sm leading-6 text-white/85 underline decoration-rose-pink/60 underline-offset-4 hover:text-soft-blush">
+          <a href={studioContact.mapHref} target="_blank" rel="noreferrer" className="mt-3 block max-w-md text-sm leading-6 text-silver/85 underline decoration-soft-pink/60 underline-offset-4 hover:text-pale-blush">
             {studioContact.address}
           </a>
-          <a href={studioContact.phoneHref} className="mt-2 inline-block text-sm text-white/85 hover:text-soft-blush">{studioContact.phone}</a>
+          <a href={studioContact.phoneHref} className="mt-2 inline-block text-sm text-silver/85 hover:text-pale-blush">{studioContact.phone}</a>
         </div>
         <div className="flex flex-wrap gap-3">
-          <a href={studioContact.phoneHref} className={cn(buttonStyles({ variant: "outline" }), "border-white/70 text-white hover:bg-white/10")}>Call the studio</a>
-          <Link href="/services" className={cn(buttonStyles(), "bg-hot-pink text-white hover:bg-deep-berry")}>Book an appointment</Link>
+          <a href={studioContact.phoneHref} className={cn(buttonStyles({ variant: "outline" }), "border-silver/70 text-silver hover:bg-surface/10")}>Call the studio</a>
+          <Link href="/services" className={cn(buttonStyles(), "bg-strong-pink text-charcoal hover:bg-raised-surface hover:text-silver")}>Book an appointment</Link>
         </div>
       </section>
     </div>
