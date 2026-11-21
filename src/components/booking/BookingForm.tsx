@@ -13,7 +13,7 @@ import { addCartEntry, getCartSnapshot, getServerCartSnapshot, saveCart, subscri
 
 type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN"; componentName?: string };
 type CatalogueItem = { _id: string; name: string; description: string; fullDescription?: string; image: string; category: string; price?: number; priceConfirmed: boolean; isPackage?: boolean; components?: { name: string }[]; extras?: Extra[] };
-type BookingResult = { reference: string; status: string; totalPrice: number | null; priceNeedsConfirmation: boolean; preferredDate: string; preferredTime: string; items: { name: string; price?: number; priceConfirmed: boolean }[]; extras: { name: string; quantity: number; unitPrice: number; subtotal: number }[] };
+type BookingResult = { reference: string; status: string; totalPrice: number | null; priceNeedsConfirmation: boolean; customerEmailSent: boolean; preferredDate: string; preferredTime: string; items: { name: string; price?: number; priceConfirmed: boolean }[]; extras: { name: string; quantity: number; unitPrice: number; subtotal: number }[] };
 type CartLine = { entry: CartEntry; item?: CatalogueItem };
 const input = "h-12 w-full rounded-xl border border-taupe bg-white px-3.5 text-ink";
 const lineKey = (line: CartEntry) => `${line.kind}:${line.id}`;
@@ -125,7 +125,7 @@ export default function BookingForm() {
       const response = await fetch("/api/bookings", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": idempotencyKey.current }, body: JSON.stringify(body) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Booking could not be submitted.");
-      setSuccess({ reference: result.reference, status: result.status, totalPrice: result.totalPrice, priceNeedsConfirmation: result.priceNeedsConfirmation, preferredDate: date, preferredTime: time, items: result.items ?? [], extras: result.extras ?? [] });
+      setSuccess({ reference: result.reference, status: result.status, totalPrice: result.totalPrice, priceNeedsConfirmation: result.priceNeedsConfirmation, customerEmailSent: result.customerEmailSent === true, preferredDate: date, preferredTime: time, items: result.items ?? [], extras: result.extras ?? [] });
       toast.success("Your booking request has been submitted successfully!");
       saveCart([]); setDate(""); setTime(""); setTimes([]); setAvailabilityMessage("Choose a date to see available times."); setAvailabilityLoading(false);
       formElement.reset(); idempotencyKey.current = crypto.randomUUID();
@@ -137,7 +137,7 @@ export default function BookingForm() {
 
   if (success) return <section className="mx-auto my-8 max-w-3xl border border-olive/30 bg-white p-6 md:p-10" aria-live="polite">
     <p className="text-sm font-semibold text-olive">Request received</p><h2 className="mt-2 font-display text-5xl">Your booking request has been submitted successfully!</h2>
-    <p className="mt-4 text-sm leading-6 text-ink/70">The studio will review the request and contact you regarding approval. Your appointment is not confirmed yet.</p>
+    <p className="mt-4 text-sm leading-6 text-ink/70">{success.customerEmailSent ? "We emailed you a receipt and will email you again when the studio approves or declines your request." : "Your request is saved, but we could not send the receipt email. Keep your reference and contact the studio if you need an update."} Your appointment is not confirmed yet.</p>
     <dl className="mt-6 divide-y divide-line border-y border-line text-sm">
       <div className="flex justify-between gap-4 py-3"><dt>Reference</dt><dd className="font-semibold">{success.reference}</dd></div>
       <div className="flex justify-between gap-4 py-3"><dt>Requested appointment</dt><dd>{success.preferredDate} at {success.preferredTime}</dd></div>
@@ -178,6 +178,7 @@ export default function BookingForm() {
       <section className="pb-4"><p className="mb-2 text-xs font-semibold text-olive">Your details</p><h2 className="mb-5 font-display text-4xl">Who should we contact?</h2><div className="grid gap-5 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm font-medium">Full name<input name="name" autoComplete="name" minLength={2} maxLength={120} required className={input}/></label>
         <label className="flex flex-col gap-1.5 text-sm font-medium">Contact number<input name="phone" type="tel" autoComplete="tel" minLength={7} maxLength={30} pattern="[+0-9 ()-]{7,30}" placeholder="e.g. 081 234 5678" required className={input}/></label>
+        <label className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">Email address<input name="email" type="email" autoComplete="email" maxLength={254} required className={input}/><span className="text-xs font-normal text-ink/55">We’ll email your request receipt and the studio’s decision to this address.</span></label>
         <label className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">Additional notes <span className="font-normal text-ink/55">(optional)</span><textarea name="description" maxLength={5000} rows={4} placeholder="Share a style preference or special request." className="w-full rounded-xl border border-taupe bg-white px-3.5 py-3"/></label>
       </div>{validationError && <p role="alert" className="mt-4 border-l-2 border-rose pl-3 text-sm text-rose">{validationError}</p>}</section>
     </div>

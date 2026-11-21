@@ -18,7 +18,7 @@ export default function BookingCta() {
           Choose your services and an available appointment time. The studio will review your request and contact you about approval.
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-5">
-          <Link href="/services" className={cn(buttonStyles(), "bg-cream text-gold-dark hover:bg-white")}>Choose a service</Link>
+          <Link href="/services" className={cn(buttonStyles(), "min-h-14 bg-cream text-gold-dark shadow-sm hover:bg-white")}>Book a service</Link>
           <Link href="/cart" className="text-xs font-semibold text-cream underline decoration-cream/40 underline-offset-4 hover:decoration-cream">Open booking cart</Link>
         </div>
       </div>

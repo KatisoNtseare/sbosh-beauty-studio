@@ -6,12 +6,24 @@ import ServicePackage from "@/models/ServicePackage";
 import Booking from "@/models/Booking";
 import { classifyService, serviceRemovalAction, validateServiceFields } from "@/lib/domain";
 
+function serviceResponse(service: Record<string, unknown>) {
+  const clean = { ...service };
+  delete clean.durationMinutes;
+  delete clean.durationConfirmed;
+  return { ...clean, extras: Array.isArray(clean.extras) ? clean.extras.map((extra) => {
+    if (!extra || typeof extra !== "object") return extra;
+    const item = { ...(extra as Record<string, unknown>) };
+    delete item.durationMinutes;
+    return item;
+  }) : clean.extras };
+}
+
 export async function GET() {
   if (!(await validAdminSession())) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     await connectDb();
-    const services = await Service.find().sort({ name: 1 }).lean();
-    return Response.json({ services: services.map((service) => ({ ...service, classification: service.classification || classifyService(service.category, service.name) })) });
+    const services = await Service.find().select("name description fullDescription image imagePublicId priceLabel price priceConfirmed minimumPrice maximumPrice extras classification category displayOrder active archivedAt createdAt updatedAt").sort({ name: 1 }).lean();
+    return Response.json({ services: services.map((service) => serviceResponse({ ...service, classification: service.classification || classifyService(service.category, service.name) })) });
   }
   catch { return Response.json({ error: "Could not load services." }, { status: 503 }); }
 }
@@ -22,7 +34,7 @@ export async function POST(request: Request) {
     const values = validateServiceFields(body);
     if (!values) return Response.json({ error: "Check the service details and price range." }, { status: 400 });
     await connectDb(); const service = await Service.create({ ...values, image: "/images/hero.jpg" });
-    return Response.json({ service }, { status: 201 });
+    return Response.json({ service: serviceResponse(service.toObject()) }, { status: 201 });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === 11000) return Response.json({ error: "A service already uses that name." }, { status: 409 });
     return Response.json({ error: "Service could not be created." }, { status: 503 });
@@ -31,15 +43,17 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   if (!(await validAdminSession())) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const body = await request.json(); if (!body || typeof body !== "object" || Array.isArray(body) || !mongoose.isValidObjectId(body.id)) return Response.json({ error: "Invalid service." }, { status: 400 });
+    const body = await request.json();
+    const id = body && typeof body === "object" ? (body.id ?? body._id) : undefined;
+    if (!body || typeof body !== "object" || Array.isArray(body) || typeof id !== "string" || !mongoose.isValidObjectId(id)) return Response.json({ error: "Invalid service." }, { status: 400 });
     const values = validateServiceFields(body);
     if (!values) return Response.json({ error: "Check the service details and price range." }, { status: 400 });
     await connectDb();
     const update = values.active
       ? { $set: values, $unset: { archivedAt: 1 } }
       : { $set: { ...values, archivedAt: new Date() } };
-    const service = await Service.findByIdAndUpdate(body.id, update, { returnDocument: "after", runValidators: true });
-    return service ? Response.json({ service }) : Response.json({ error: "Service not found." }, { status: 404 });
+    const service = await Service.findByIdAndUpdate(id, update, { returnDocument: "after", runValidators: true });
+    return service ? Response.json({ service: serviceResponse(service.toObject()) }) : Response.json({ error: "Service not found." }, { status: 404 });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === 11000) return Response.json({ error: "A service already uses that name." }, { status: 409 });
     return Response.json({ error: "Service could not be saved." }, { status: 503 });

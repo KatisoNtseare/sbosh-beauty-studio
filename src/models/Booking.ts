@@ -1,7 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
 const notificationSchema = new Schema({
-  type: { type: String, enum: ["ADMIN_NEW_BOOKING", "CUSTOMER_APPROVED", "CUSTOMER_REJECTED"], required: true },
+  type: { type: String, enum: ["ADMIN_NEW_BOOKING", "CUSTOMER_REQUEST_RECEIVED", "CUSTOMER_APPROVED", "CUSTOMER_REJECTED"], required: true },
   recipient: { type: String, default: "" },
   subject: { type: String, required: true },
   status: { type: String, enum: ["PENDING", "SENDING", "SENT", "FAILED"], default: "PENDING" },

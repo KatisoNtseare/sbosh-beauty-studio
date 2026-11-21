@@ -13,7 +13,8 @@ describe("MongoDB schema safeguards", () => {
     expect(Booking.schema.indexes().some(([index, options]) => index.idempotencyKey === 1 && options.unique === true && options.sparse === true)).toBe(true);
     expect(ReservationDay.schema.indexes().some(([index, options]) => index.date === 1 && options.unique === true)).toBe(true);
     expect(ServicePackage.schema.indexes().some(([index, options]) => index.name === 1 && options.unique === true)).toBe(true);
-    expect((Service.schema.path("durationConfirmed") as unknown as { defaultValue: boolean }).defaultValue).toBe(false);
+    expect(Service.schema.path("durationConfirmed")?.options.select).toBe(false);
+    expect(ServicePackage.schema.path("additionalDurationMinutes")?.options.select).toBe(false);
     expect(Booking.schema.path("totalPrice")).toBeDefined();
     expect(Booking.schema.path("priceNeedsConfirmation")).toBeDefined();
   });
