@@ -5,7 +5,7 @@ import PageIntro from "@/components/layouts/PageIntro";
 export const metadata: Metadata = {
   title: "Book an appointment | SBOSH Beauty Studio",
   description:
-    "Choose your treatment, preferred date and time, then share your contact details with SBOSH Beauty Studio.",
+    "Choose a nail service and preferred time, then call or WhatsApp SBOSH Beauty Studio to confirm pricing and availability.",
 };
 
 export default function BookingPage() {
@@ -14,7 +14,7 @@ export default function BookingPage() {
       <PageIntro
         eyebrow="Your time, your way"
         title="Book your visit."
-        lead="Choose a treatment, find a date and time, and leave us your details."
+        lead="Choose a nail service and a preferred time. Call or WhatsApp the studio to confirm pricing and availability."
       />
       <div className="mt-8">
         <BookingForm />

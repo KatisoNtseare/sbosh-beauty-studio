@@ -9,7 +9,7 @@ export default function StudioMoodboard() {
   return (
     <div role="img" aria-label="Four abstract illustrations in the SBOSH studio moodboard">
       <div className="grid grid-cols-2 gap-2.5 md:gap-3">
-        {studies.map((study, index) => (
+        {studies.map((study) => (
           <figure key={study.name} className={`mood-tile ${study.color}`}>
             <div aria-hidden="true" className={`mood-shape ${study.shape}`}>
               <span className={`mood-sun ${study.sun}`} />
@@ -17,11 +17,11 @@ export default function StudioMoodboard() {
               {study.shape === "mood-vessel" && <><span className="vessel-neck" /><span className="vessel-body" /></>}
               {study.shape === "mood-leaf" && <><span className="leaf-stem" /><span className="leaf-one" /><span className="leaf-two" /><span className="leaf-three" /></>}
             </div>
-            <figcaption><span>0{index + 1}</span>{study.name}</figcaption>
+            <figcaption>{study.name}</figcaption>
           </figure>
         ))}
       </div>
-      <p className="mt-3 text-[9px] uppercase tracking-[0.15em] text-ink/45">A colour and shape study · illustrative, not studio photography</p>
+      <p className="mt-3 text-[10px] text-ink/55">A colour and shape study · illustration, not studio photography</p>
     </div>
   );
 }

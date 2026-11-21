@@ -19,7 +19,7 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "SBOSH Beauty Studio",
   description:
-    "Facials, brows, lashes, nails and massage. Book your beauty and wellness experience online.",
+    "Manicures, gel nails, overlays, nail repair, and buff & shine at SBOSH Beauty Studio in Bram Fischerville, Roodepoort.",
 };
 
 export default function RootLayout({
@@ -29,9 +29,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${cormorant.variable} ${montserrat.variable}`}>
-      <body>
+      <body className="flex min-h-screen flex-col">
         <Navbar />
-        <main>{children}</main>
+        <main className="flex-1">{children}</main>
         <Footer />
       </body>
     </html>

@@ -7,8 +7,8 @@ export default function ServicesSection() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-12 grid gap-5 md:grid-cols-[1fr_300px] md:items-end md:gap-10">
           <div>
-            <p className="mb-4 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-olive">
-              <span className="h-px w-8 bg-rose" />Thoughtful care, from head to toe
+            <p className="mb-4 flex items-center gap-3 text-[11px] font-semibold tracking-[0.04em] text-olive">
+              <span className="h-px w-8 bg-rose" />Thoughtful nail care
             </p>
             <h2 className="font-display text-5xl font-medium leading-[0.95] tracking-tight md:text-7xl">
               Find your <span className="italic text-olive">ritual.</span>
@@ -20,13 +20,13 @@ export default function ServicesSection() {
         </div>
 
         <div className="border-t border-line">
-          {serviceGroups.map((group, index) => (
+          {serviceGroups.map((group) => (
             <Link
               key={group.id}
               href="/book"
               className="group grid gap-3 border-b border-line py-6 transition-colors hover:bg-cream/60 sm:grid-cols-[70px_0.8fr_1.2fr_28px] sm:items-center sm:gap-5 md:py-7"
             >
-              <span className="font-display text-lg italic text-gold/80">0{index + 1}</span>
+              <span aria-hidden="true" className="size-2 rounded-full bg-rose/80" />
               <h3 className="font-display text-2xl font-medium md:text-[27px]">{group.title}</h3>
               <span className="text-xs leading-6 text-ink/65">{group.treatments.map((treatment) => treatment.name).join("  ·  ")}</span>
               <span aria-hidden="true" className="hidden text-lg text-olive transition-transform group-hover:translate-x-1 sm:block">↗</span>

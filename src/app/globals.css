@@ -214,8 +214,7 @@ textarea:focus-visible {
   color: #2e2c27;
   font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .mood-tile:last-child figcaption { color: #f7f4ed; }
