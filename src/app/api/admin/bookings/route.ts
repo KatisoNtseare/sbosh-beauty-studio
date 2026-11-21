@@ -2,6 +2,7 @@ import { connectDb } from "@/lib/mongodb";
 import { validAdminSession } from "@/lib/admin-auth";
 import Booking from "@/models/Booking";
 import Service from "@/models/Service";
+import { todayInSalon } from "@/lib/timezone";
 
 function safeRegex(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
       Service.distinct("name"),
     ]);
     const counts = await Booking.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const today = todayInSalon();
     const upcoming = await Booking.countDocuments({ status: "APPROVED", confirmedDate: { $gte: today } });
     return Response.json({ bookings, total, page, pages: Math.max(1, Math.ceil(total / limit)), services: serviceNames, counts: { ...Object.fromEntries(counts.map((row) => [row._id, row.count])), UPCOMING: upcoming } });
   } catch { return Response.json({ error: "Bookings are temporarily unavailable." }, { status: 503 }); }

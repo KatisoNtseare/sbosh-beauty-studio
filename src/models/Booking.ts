@@ -20,6 +20,7 @@ const bookingSchema = new Schema({
     content: { type: String, required: true, maxlength: 3000 },
   }],
   idempotencyKey: { type: String, unique: true, sparse: true },
+  idempotencyFingerprint: { type: String, select: false },
 }, { timestamps: true });
 
 bookingSchema.index({ status: 1, createdAt: -1 });

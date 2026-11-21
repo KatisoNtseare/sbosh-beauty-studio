@@ -1,12 +1,15 @@
 import Availability from "@/models/Availability";
 import ReservationDay from "@/models/ReservationDay";
+import { todayInSalon } from "@/lib/timezone";
+import { businessProfile } from "@/lib/brand";
 
-export function todayInSalon() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+export { todayInSalon } from "@/lib/timezone";
 export function minute(value: string) { const [h, m] = value.split(":").map(Number); return Number.isInteger(h) && Number.isInteger(m) && h >= 0 && h < 24 && m >= 0 && m < 60 ? h * 60 + m : -1; }
 export function validCalendarDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T12:00:00+02:00`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 export function validDate(value: string) { return validCalendarDate(value) && value >= todayInSalon(); }
 
@@ -15,7 +18,7 @@ export async function slotsFor(date: string, duration: number, ignoreBookingId?:
   const settings = await Availability.findOne().lean();
   if (!settings || !validDate(date) || settings.blockedDates?.includes(date)) return [];
   const exceptions = settings.exceptions?.find((item: { date: string }) => item.date === date);
-  const weekday = new Date(`${date}T12:00:00+02:00`).getDay();
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   const weekly = settings.weekly?.find((item: { weekday: number }) => item.weekday === weekday);
   const hours = exceptions ? (exceptions.enabled ? exceptions : null) : (weekly?.enabled ? weekly : null);
   if (!hours) return [];
@@ -26,7 +29,7 @@ export async function slotsFor(date: string, duration: number, ignoreBookingId?:
   const step = Math.max(5, Number(settings.slotMinutes || 30));
   const reservations = await ReservationDay.findOne({ date }).lean();
   const occupied = (reservations?.reservations ?? []).filter((r: { bookingId: unknown }) => String(r.bookingId) !== ignoreBookingId);
-  const [currentHour, currentMinute] = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date()).split(":").map(Number);
+  const [currentHour, currentMinute] = new Intl.DateTimeFormat("en-GB", { timeZone: businessProfile.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date()).split(":").map(Number);
   const currentTime = currentHour * 60 + currentMinute;
   const breaks = Array.isArray(settings.breaks) ? [...settings.breaks] : [];
   if (settings.breakStart && settings.breakEnd) breaks.push({ start: settings.breakStart, end: settings.breakEnd });

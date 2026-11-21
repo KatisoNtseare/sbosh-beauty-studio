@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { businessProfile } from "@/lib/brand";
 import { buildWhatsAppMessage, messageTypeForStatus, type BookingMessageType, whatsappUrl } from "@/lib/domain";
+import { calculateBookingStats } from "@/lib/admin-stats";
 
 type Booking = {
   _id: string; reference: string; customer: { name: string; phone: string; email?: string };
@@ -75,12 +76,13 @@ export default function AdminPanel() {
     {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
   </form>;
 
+  const stats = calculateBookingStats(counts);
   return <>
     <header className="mb-8 flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-xs font-semibold text-olive">{businessProfile.name}</p><h1 className="font-display text-5xl md:text-6xl">Studio admin</h1></div><button onClick={() => void logout()} className="border border-line px-4 py-2 text-sm">Sign out</button></header>
     <nav aria-label="Admin sections" className="mb-7 flex flex-wrap gap-3 border-b border-line">{([["bookings", "Booking requests"], ["calendar", "Calendar"], ["availability", "Availability & services"]] as const).map(([id, label]) => <button key={id} onClick={() => setTab(id)} className={`px-3 py-3 text-sm ${tab === id ? "border-b-2 border-olive font-semibold" : ""}`}>{label}</button>)}</nav>
     {error && <p role="alert" className="mb-4 border-l-2 border-rose bg-white p-3 text-sm">{error}</p>}{notice && <p role="status" className="mb-4 border-l-2 border-olive bg-white p-3 text-sm">{notice}</p>}
     {tab === "bookings" && <>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">{[["Requests", Object.values(counts).reduce((sum, count) => sum + count, 0) - (counts.UPCOMING || 0)], ["Pending", counts.PENDING || 0], ["Approved", counts.APPROVED || 0], ["Rejected", counts.REJECTED || 0], ["Completed", counts.COMPLETED || 0], ["Cancelled", counts.CANCELLED || 0], ["Upcoming", counts.UPCOMING || 0]].map(([label, value]) => <div key={String(label)} className="border border-line bg-white p-4"><p className="text-xs text-ink/60">{label}</p><p className="mt-1 font-display text-3xl">{value}</p></div>)}</div>
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">{[["Requests", stats.requests], ["Pending", stats.pending], ["Approved", stats.approved], ["Rejected", stats.rejected], ["Completed", stats.completed], ["Cancelled", stats.cancelled], ["Upcoming", stats.upcoming]].map(([label, value]) => <div key={String(label)} className="border border-line bg-white p-4"><p className="text-xs text-ink/60">{label}</p><p className="mt-1 font-display text-3xl">{value}</p></div>)}</div>
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className={input}><option value="ALL">All statuses</option>{["PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].map((value) => <option key={value}>{value}</option>)}</select><input placeholder="Customer, reference or phone" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} className={input}/><input type="date" aria-label="Filter by requested or confirmed date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1); }} className={input}/><select value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value); setPage(1); }} className={input}><option value="ALL">All services</option>{serviceNames.map((service) => <option key={service}>{service}</option>)}</select></div>
       <div className="space-y-3">{filtered.map((booking) => <BookingRow key={booking._id} booking={booking} onAction={(payload) => void updateBooking(booking._id, payload)}/>)}</div>
       {!filtered.length && <p className="border border-line bg-white p-8 text-center text-sm text-ink/65">No booking requests match these filters.</p>}

@@ -31,7 +31,9 @@ export async function PATCH(request: Request, { params }: Ctx) {
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ error: "Invalid booking action." }, { status: 400 });
     const booking = await Booking.findById(id); if (!booking) return Response.json({ error: "Booking not found." }, { status: 404 });
-    const admin = adminIdentity(); const now = new Date();
+    const admin = await adminIdentity();
+    if (!admin) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const now = new Date();
     if (body.action === "mark-sent") {
       const type = messageTypeForStatus(booking.status);
       if (!canTransitionBooking(booking.status, "mark-sent") || !type) return Response.json({ error: "No WhatsApp message is available for this booking status." }, { status: 409 });

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { buttonStyles } from "@/lib/button";
 import { studioContact } from "@/lib/data";
+import { todayInSalon } from "@/lib/timezone";
 
 type Service = { _id: string; name: string; description: string; priceLabel: string; minimumPrice?: number; maximumPrice?: number; durationMinutes?: number };
 const input = "h-12 w-full rounded-xl border border-taupe bg-white px-3.5 text-ink";
@@ -56,7 +57,7 @@ export default function BookingForm() {
       </section>
       <section className="border-b border-line pb-8">
         <p className="mb-1.5 text-xs font-semibold text-gold">Your preference</p><h2 className="mb-5 font-display text-4xl font-medium">Choose a date and time</h2>
-        <div className="grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2 text-sm font-medium">Preferred date<input type="date" required min={new Date().toLocaleDateString("en-CA")} value={date} onChange={(e) => { setDate(e.target.value); setTimes([]); setTime(""); setAvailabilityMessage("Loading available times…"); }} className={input}/></label><label className="flex flex-col gap-2 text-sm font-medium">Available preferred time<select required value={time} onChange={(e) => setTime(e.target.value)} className={input} disabled={!date || !serviceId}><option value="">{!date ? "Choose a date first" : times.length ? "Choose a time" : "No available times"}</option>{times.map((t) => <option key={t} value={t}>{t}</option>)}</select></label></div><p aria-live="polite" className="mt-2 text-xs text-ink/60">{availabilityMessage || "Choose a service and date to check availability."}</p>
+        <div className="grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2 text-sm font-medium">Preferred date<input type="date" required min={todayInSalon()} value={date} onChange={(e) => { setDate(e.target.value); setTimes([]); setTime(""); setAvailabilityMessage("Loading available times…"); }} className={input}/></label><label className="flex flex-col gap-2 text-sm font-medium">Available preferred time<select required value={time} onChange={(e) => setTime(e.target.value)} className={input} disabled={!date || !serviceId}><option value="">{!date ? "Choose a date first" : times.length ? "Choose a time" : "No available times"}</option>{times.map((t) => <option key={t} value={t}>{t}</option>)}</select></label></div><p aria-live="polite" className="mt-2 text-xs text-ink/60">{availabilityMessage || "Choose a service and date to check availability."}</p>
         <p className="mt-3 text-xs leading-5 text-ink/60">Your preferred date and time are a request. The studio will confirm availability with you.</p>
       </section>
       <section className="pb-4"><p className="mb-1.5 text-xs font-semibold text-gold">A little about you</p><h2 className="mb-5 font-display text-4xl font-medium">Help us prepare</h2>

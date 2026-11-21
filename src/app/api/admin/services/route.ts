@@ -29,7 +29,11 @@ export async function PATCH(request: Request) {
     const body = await request.json(); if (!body || typeof body !== "object" || Array.isArray(body) || !mongoose.isValidObjectId(body.id)) return Response.json({ error: "Invalid service." }, { status: 400 });
     const values = validateServiceFields(body);
     if (!values) return Response.json({ error: "Check the service details and price range." }, { status: 400 });
-    await connectDb(); const service = await Service.findByIdAndUpdate(body.id, { ...values, archivedAt: values.active ? undefined : new Date() }, { new: true, runValidators: true });
+    await connectDb();
+    const update = values.active
+      ? { $set: values, $unset: { archivedAt: 1 } }
+      : { $set: { ...values, archivedAt: new Date() } };
+    const service = await Service.findByIdAndUpdate(body.id, update, { returnDocument: "after", runValidators: true });
     return service ? Response.json({ service }) : Response.json({ error: "Service not found." }, { status: 404 });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === 11000) return Response.json({ error: "A service already uses that name." }, { status: 409 });
