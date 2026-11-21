@@ -23,6 +23,7 @@ import { POST as submitBooking } from "@/app/api/bookings/route";
 import { PATCH as updateBooking } from "@/app/api/admin/bookings/[id]/route";
 import { PATCH as updateService } from "@/app/api/admin/services/route";
 import { GET as getPublicServices } from "@/app/api/services/route";
+const smtpMock = (globalThis as typeof globalThis & { __integrationSmtpMock: { sendMail: ReturnType<typeof vi.fn> } }).__integrationSmtpMock;
 
 const cleanupBookingIds: mongoose.Types.ObjectId[] = [];
 const reservationDates: string[] = [];
@@ -135,12 +136,18 @@ describe("MongoDB booking and reservation integration", () => {
     const date = nextDate();
     reservationDates.push(date);
     const key = `retry-${randomUUID()}`;
-    const body = bookingBody(date);
+    const body = { ...bookingBody(date), name: "<img src=x onerror=alert(1)> Client" };
     const first = await postBooking(body, key);
     expect(first.response.status).toBe(201);
     expect(first.result.reference).toMatch(/^#SBS\d+$/);
     const submitted = await Booking.findOne({ reference: first.result.reference });
     expect(submitted?.notifications[0]).toMatchObject({ type: "ADMIN_NEW_BOOKING", status: "SENT" });
+    expect(smtpMock.sendMail).toHaveBeenLastCalledWith(expect.objectContaining({
+      to: "admin@example.test",
+      text: expect.stringContaining("Status: PENDING"),
+      html: expect.stringContaining("&lt;img src=x onerror=alert(1)&gt; Client"),
+    }));
+    expect(smtpMock.sendMail.mock.calls.at(-1)?.[0].html).not.toContain("<img src=x");
 
     await Availability.updateOne({ _id: availabilityId }, { $push: { blockedPeriods: { date, start: "10:00", end: "11:00" } } });
     const retry = await postBooking(body, key);
@@ -157,9 +164,13 @@ describe("MongoDB booking and reservation integration", () => {
     reservationDates.push(date);
     const body = bookingBody(date);
     const key = `parallel-${randomUUID()}`;
-    const sameKey = await Promise.all([postBooking(body, key), postBooking(body, key)]);
-    expect(sameKey.map(({ response }) => response.status).sort()).toEqual([200, 201]);
-    expect(sameKey[0].result.reference).toBe(sameKey[1].result.reference);
+    const sameKey = await Promise.all(Array.from({ length: 6 }, () => postBooking(body, key)));
+    expect(sameKey.filter(({ response }) => response.status === 201)).toHaveLength(1);
+    expect(sameKey.every(({ response }) => [200, 201].includes(response.status))).toBe(true);
+    expect(new Set(sameKey.map(({ result }) => result.reference)).size).toBe(1);
+    expect(await Booking.countDocuments({ idempotencyKey: key })).toBe(1);
+    const single = await Booking.findOne({ idempotencyKey: key });
+    expect(single?.notifications.filter((notice: { type: string }) => notice.type === "ADMIN_NEW_BOOKING")).toHaveLength(1);
 
     const distinct = await Promise.all([
       postBooking(body, `distinct-a-${randomUUID()}`),
@@ -183,6 +194,48 @@ describe("MongoDB booking and reservation integration", () => {
     expect(approvals.map((response) => response.status).sort()).toEqual([200, 409]);
     expect(await Booking.countDocuments({ _id: { $in: pending.map(({ _id }) => _id) }, status: "APPROVED" })).toBe(1);
     expect(await ReservationDay.countDocuments({ date, "reservations.0": { $exists: true } })).toBe(1);
+  });
+
+  it("keeps a failed new-booking email retryable and retries without another booking or notification", async () => {
+    const date = nextDate();
+    reservationDates.push(date);
+    const key = `email-fail-${randomUUID()}`;
+    const body = bookingBody(date);
+    smtpMock.sendMail.mockRejectedValueOnce(new Error("fake SMTP failure"));
+    const first = await postBooking(body, key);
+    expect(first.response.status).toBe(201);
+    expect(first.result.emailStatus).toBe("FAILED");
+    const booking = await Booking.findOne({ idempotencyKey: key });
+    expect(booking?.status).toBe("PENDING");
+    expect(booking?.notifications).toHaveLength(1);
+    expect(booking?.notifications[0].status).toBe("FAILED");
+
+    const retried = await adminAction(String(booking?._id), "retry-email", { notificationId: String(booking?.notifications[0]._id) });
+    expect(retried.status).toBe(200);
+    const updated = await Booking.findById(booking?._id);
+    expect(updated?.status).toBe("PENDING");
+    expect(updated?.notifications).toHaveLength(1);
+    expect(updated?.notifications[0]).toMatchObject({ status: "SENT", attemptCount: 2 });
+    const replay = await postBooking(body, key);
+    expect(replay.response.status).toBe(200);
+    expect(await Booking.countDocuments({ idempotencyKey: key })).toBe(1);
+    expect(smtpMock.sendMail).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers only stale SENDING notifications through the atomic retry claim", async () => {
+    const date = nextDate();
+    reservationDates.push(date);
+    const created = await postBooking(bookingBody(date), `stale-${randomUUID()}`);
+    const booking = await Booking.findOne({ reference: created.result.reference });
+    if (!booking) throw new Error("Test booking was not saved.");
+    const notificationId = String(booking.notifications[0]._id);
+    await Booking.updateOne({ _id: booking._id }, { $set: { "notifications.0.status": "SENDING", "notifications.0.attemptedAt": new Date() } });
+    expect((await adminAction(String(booking._id), "retry-email", { notificationId })).status).toBe(409);
+
+    await Booking.updateOne({ _id: booking._id }, { $set: { "notifications.0.attemptedAt": new Date(Date.now() - 6 * 60_000) } });
+    const recovered = await adminAction(String(booking._id), "retry-email", { notificationId });
+    expect(recovered.status).toBe(200);
+    expect((await Booking.findById(booking._id))?.notifications[0]).toMatchObject({ status: "SENT", attemptCount: 2 });
   });
 
   it("uses atomic database updates for overlapping, adjacent and buffered intervals", async () => {
@@ -222,6 +275,10 @@ describe("MongoDB booking and reservation integration", () => {
     expect(approval.status).toBe(200);
     expect((await approval.json()).emailStatus).toBe("SENT");
     expect((await Booking.findById(cancelled.id))?.notifications[0]).toMatchObject({ type: "CUSTOMER_APPROVED", status: "SENT" });
+    expect(smtpMock.sendMail).toHaveBeenLastCalledWith(expect.objectContaining({
+      to: "customer@example.test",
+      text: expect.stringContaining(`Appointment: ${new Intl.DateTimeFormat("en-ZA", { dateStyle: "long", timeZone: "UTC" }).format(new Date(cancelled.preferredDate + "T12:00:00Z"))} at 10:00`),
+    }));
     expect(await ReservationDay.countDocuments({ date: cancelled.preferredDate, "reservations.0": { $exists: true } })).toBe(1);
     expect((await adminAction(cancelled.id, "cancel")).status).toBe(200);
     expect(await ReservationDay.countDocuments({ date: cancelled.preferredDate, "reservations.0": { $exists: true } })).toBe(0);

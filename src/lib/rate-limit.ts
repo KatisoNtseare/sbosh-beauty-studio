@@ -11,7 +11,7 @@ export async function withinRateLimit(scope: string, key: string, limit: number,
   const record = await RateLimit.findOneAndUpdate(
     { _id: id },
     { $inc: { count: 1 }, $setOnInsert: { expiresAt: new Date((window + 2) * windowMs) } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
   ).lean();
   return Number(record?.count ?? limit + 1) <= limit;
 }

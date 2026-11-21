@@ -11,10 +11,12 @@ import { adminNotificationRecipient, sendNotification } from "@/lib/email";
 import mongoose from "mongoose";
 
 export async function POST(request: Request) {
+  let body: Record<string, unknown> | null = null;
+  let idempotencyKey = "";
   try {
     await connectDb();
     if (!(await withinRateLimit("public-booking", requestIp(request), 5))) return Response.json({ error: "Please wait a minute before trying again." }, { status: 429 });
-    const body = await request.json().catch(() => null);
+    body = await request.json().catch(() => null);
     if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ error: "Check your details and try again." }, { status: 400 });
     const customer = validateCustomerFields(body);
     if (!customer) return Response.json({ error: "Enter your full name and a valid email. Phone and appointment notes are optional." }, { status: 400 });
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
     const submittedKey = request.headers.get("idempotency-key")?.trim();
     if (submittedKey && !/^[A-Za-z0-9._:-]{8,128}$/.test(submittedKey)) return Response.json({ error: "Invalid submission key." }, { status: 400 });
     if (!validCalendarDate(date) || !/^\d{2}:\d{2}$/.test(time) || minute(time) < 0 || !mongoose.isValidObjectId(serviceId)) return Response.json({ error: "Choose a valid preferred date, time and service." }, { status: 400 });
-    const idempotencyKey = submittedKey || randomBytes(16).toString("hex");
+    idempotencyKey = submittedKey || randomBytes(16).toString("hex");
     const submitted = { customer, serviceId, date, time };
     const secret = process.env.AUTH_SECRET ?? "";
     const fingerprint = bookingSubmissionFingerprint(submitted, secret);
@@ -55,14 +57,13 @@ export async function POST(request: Request) {
     }, { status: 201 });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === 11000) {
-      const key = request.headers.get("idempotency-key")?.trim();
-      if (key) {
-        const prior = await Booking.findOne({ idempotencyKey: key }).select("+idempotencyFingerprint").lean();
+      if (idempotencyKey && body) {
+        const prior = await Booking.findOne({ idempotencyKey }).select("+idempotencyFingerprint").lean();
         if (prior) {
-          const body = await request.clone().json().catch(() => null);
-          const customer = body ? validateCustomerFields(body) : null;
+          const customer = validateCustomerFields(body);
           const submitted = customer ? { customer, serviceId: String(body.serviceId ?? ""), date: String(body.date ?? ""), time: String(body.time ?? "") } : null;
           if (submitted && sameBookingSubmission(prior, bookingSubmissionFingerprint(submitted, process.env.AUTH_SECRET ?? ""), submitted, process.env.AUTH_SECRET ?? "")) return Response.json({ reference: prior.reference, status: prior.status }, { status: 200 });
+          return Response.json({ error: "This submission key was already used for different booking details." }, { status: 409 });
         }
       }
     }

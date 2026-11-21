@@ -16,7 +16,8 @@ export async function nextBookingReference() {
   const counter = await Counter.findOneAndUpdate(
     { _id: "booking-reference" },
     { $inc: { value: 1 } },
-    { new: true },
+    { returnDocument: "after" },
   ).lean();
-  return "#SBS" + counter!.value;
+  if (!counter) throw new Error("Booking reference counter could not be updated.");
+  return "#SBS" + counter.value;
 }

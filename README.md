@@ -91,14 +91,18 @@ npx tsc --noEmit
 npm run build
 ```
 
-Integration tests require an explicitly configured, empty replica-set database named `sbosh_beauty_test` in `MONGODB_TEST_URI`. They never fall back to `MONGODB_URI` or drop collections. Configure a dedicated local test database and run:
+MongoDB integration tests are for local verification only and do not run in CI. They require an explicitly configured, empty replica-set database named `sbosh_beauty_test` in `MONGODB_TEST_URI`. They never fall back to `MONGODB_URI` or drop collections. Configure a dedicated native MongoDB test replica set and run:
 
 ```powershell
 $env:MONGODB_TEST_URI = "mongodb://127.0.0.1:27017/sbosh_beauty_test?replicaSet=rs0"
 npm run test:integration
 ```
 
-Never use a production database for tests.
+The runner refuses remote hosts and non-test database names. Never point tests at an application or production database.
+
+## Database reset and backup
+
+Database resets are destructive. First verify the private `MONGODB_URI` target and take a verified backup with MongoDB Database Tools (`mongodump`) or an approved native export of the application collections. Record collection names and counts, then clear only the application's model-owned collections with `deleteMany({})`; preserve indexes and unrelated collections. Verify each cleared collection is empty and reseed the administrator with `npm run seed:admin`. Keep backups outside the repository and never commit database exports or `.env.local`.
 
 ## Production configuration
 

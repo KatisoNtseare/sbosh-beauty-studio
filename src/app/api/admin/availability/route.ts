@@ -57,7 +57,7 @@ export async function PUT(request: Request) {
     const settings = await Availability.findOneAndUpdate(
       {},
       { $set: { weekly, blockedDates, blockedPeriods, breaks, legacyOpeningRules, exceptions: [], slotMinutes: data.slotMinutes, bufferMinutes: data.bufferMinutes, timeZone: "Africa/Johannesburg" }, $unset: { breakStart: 1, breakEnd: 1 } },
-      { upsert: true, new: true, runValidators: true },
+      { upsert: true, returnDocument: "after", runValidators: true },
     );
     return Response.json({ settings });
   } catch { return Response.json({ error: "Availability could not be saved." }, { status: 503 }); }

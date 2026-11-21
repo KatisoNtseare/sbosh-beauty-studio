@@ -46,8 +46,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
       const notificationId = String(body.notificationId ?? "");
       if (!mongoose.isValidObjectId(notificationId)) return Response.json({ error: "Invalid email notification." }, { status: 400 });
       const notification = booking.notifications.find((item: (typeof booking.notifications)[number]) => String(item._id) === notificationId);
-      if (!notification || notification.status !== "FAILED") return Response.json({ error: "Only a failed email can be retried." }, { status: 409 });
+      const staleSending = notification?.status === "SENDING" && notification.attemptedAt && notification.attemptedAt.getTime() < Date.now() - 5 * 60_000;
+      if (!notification || !(notification.status === "FAILED" || notification.status === "PENDING" || staleSending)) return Response.json({ error: "This email is already being delivered or is not eligible for retry." }, { status: 409 });
       const result = await sendNotification(id, notificationId);
+      if (result.skipped) return Response.json({ error: "This email is already being delivered or is not eligible for retry." }, { status: 409 });
       return Response.json({ booking: await Booking.findById(id).lean(), emailStatus: result.sent ? "SENT" : "FAILED", warning: result.sent ? undefined : "Email could not be sent. Check SMTP settings and retry." });
     }
     if (body.action === "reject") {
@@ -56,7 +58,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
       const rejected = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "REJECTED", rejectionReason: reason, decidedBy: admin.id }, $push: { history: { status: "REJECTED", at: now, by: admin.name, note: reason } } });
       if (!rejected.modifiedCount) return Response.json({ error: "Booking changed; refresh and try again." }, { status: 409 });
       const emailStatus = await customerNotice(id, "CUSTOMER_REJECTED");
-      return Response.json({ booking: await Booking.findById(id).lean(), emailStatus, warning: emailStatus === "FAILED" ? "Email could not be sent. Retry it from this booking." : undefined });
+      return Response.json({ booking: await Booking.findById(id).lean(), emailStatus, warning: emailStatus === "FAILED" ? "The request was rejected, but the customer email could not be delivered. Please retry the notification." : undefined });
     }
     if (body.action === "complete") {
       if (!canTransitionBooking(booking.status, "complete")) return Response.json({ error: "Only approved appointments can be completed." }, { status: 409 });
@@ -134,6 +136,6 @@ export async function PATCH(request: Request, { params }: Ctx) {
       if (!saved.modifiedCount) { await releaseInterval(date, booking._id, start, end); return Response.json({ error: "Booking changed; refresh and try again." }, { status: 409 }); }
     }
     const emailStatus = await customerNotice(id, "CUSTOMER_APPROVED");
-    return Response.json({ booking: await Booking.findById(id).lean(), emailStatus, warning: emailStatus === "FAILED" ? "The appointment is approved, but its email could not be sent. Retry it from this booking." : undefined });
+    return Response.json({ booking: await Booking.findById(id).lean(), emailStatus, warning: emailStatus === "FAILED" ? "Appointment approved, but the customer email could not be delivered. Please retry the notification." : undefined });
   } catch { return Response.json({ error: "Booking could not be updated." }, { status: 503 }); }
 }

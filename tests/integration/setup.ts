@@ -1,8 +1,19 @@
 import { vi } from "vitest";
 
+const smtpMock = vi.hoisted(() => {
+  const sendMail = vi.fn(async () => ({ messageId: "integration-test" }));
+  return { sendMail, createTransport: vi.fn(() => ({ sendMail })) };
+});
 vi.mock("nodemailer", () => ({
-  default: { createTransport: () => ({ sendMail: vi.fn(async () => ({ messageId: "integration-test" })) }) },
+  default: { createTransport: smtpMock.createTransport },
 }));
+Object.assign(globalThis, { __integrationSmtpMock: smtpMock });
+
+process.env.ZOHO_SMTP_HOST = "smtp.invalid";
+process.env.ZOHO_SMTP_PORT = "587";
+process.env.ZOHO_SMTP_USER = "integration@example.test";
+process.env.ZOHO_SMTP_PASS = "integration-only-fake-password";
+process.env.CONTACT_RECEIVER = "admin@example.test";
 
 const testUri = process.env.MONGODB_TEST_URI;
 if (!testUri) throw new Error("MONGODB_TEST_URI is required. Integration tests never fall back to MONGODB_URI.");

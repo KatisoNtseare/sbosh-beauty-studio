@@ -70,10 +70,12 @@ export default function BookingForm() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
+    const formElement = event.currentTarget;
     setBusy(true);
     setSuccess("");
     setToast(null);
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     if (!idempotencyKey.current) idempotencyKey.current = crypto.randomUUID();
     try {
       const response = await fetch("/api/bookings", {
@@ -83,10 +85,12 @@ export default function BookingForm() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "We couldn’t send your request.");
-      const confirmation = "Request " + result.reference + " has been received and is awaiting review. The studio will email you after reviewing it. Your appointment is not confirmed yet.";
+      const confirmation = result.emailStatus === "FAILED"
+        ? "Request " + result.reference + " has been saved and is awaiting review. The studio’s email notification is delayed; your appointment is not confirmed yet."
+        : "Request " + result.reference + " has been received and is awaiting review. The studio will email you after reviewing it. Your appointment is not confirmed yet.";
       setSuccess(confirmation);
       setToast({ id: Date.now(), type: "success", message: "Request received · " + result.reference });
-      event.currentTarget.reset();
+      formElement.reset();
       setDate(""); setTime(""); setTimes([]); setAvailabilityLoading(false); setAvailabilityMessage("Choose a date to see available times.");
       idempotencyKey.current = crypto.randomUUID();
     } catch (error) {

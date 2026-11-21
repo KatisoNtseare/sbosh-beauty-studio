@@ -55,7 +55,7 @@ export async function addNotification(bookingId: unknown, type: NoticeType, reci
 
 export async function sendNotification(bookingId: string, notificationId: string) {
   const query = { _id: new mongoose.Types.ObjectId(bookingId), notifications: { $elemMatch: { _id: new mongoose.Types.ObjectId(notificationId), $or: [{ status: "PENDING" }, { status: "FAILED" }, { status: "SENDING", attemptedAt: { $lt: new Date(Date.now() - 5 * 60_000) } }] } } };
-  const claimed = await Booking.findOneAndUpdate(query, { $set: { "notifications.$.status": "SENDING", "notifications.$.attemptedAt": new Date(), "notifications.$.lastFailure": "" }, $inc: { "notifications.$.attemptCount": 1 } }, { new: true }).lean();
+  const claimed = await Booking.findOneAndUpdate(query, { $set: { "notifications.$.status": "SENDING", "notifications.$.attemptedAt": new Date(), "notifications.$.lastFailure": "" }, $inc: { "notifications.$.attemptCount": 1 } }, { returnDocument: "after" }).lean();
   if (!claimed) return { sent: false, skipped: true };
   const typedBooking = claimed as unknown as BookingMail & { notifications: NotificationRecord[] };
   const notice = typedBooking.notifications.find((item) => String(item._id) === notificationId);
