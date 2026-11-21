@@ -14,6 +14,7 @@ import { connectDb } from "@/lib/mongodb";
 import { adminCookieValue } from "@/lib/admin-auth";
 import { reserveInterval } from "@/lib/reservations";
 import Booking from "@/models/Booking";
+import Admin from "@/models/Admin";
 import Availability from "@/models/Availability";
 import RateLimit from "@/models/RateLimit";
 import ReservationDay from "@/models/ReservationDay";
@@ -23,9 +24,14 @@ import { POST as submitBooking } from "@/app/api/bookings/route";
 import { PATCH as updateBooking } from "@/app/api/admin/bookings/[id]/route";
 import { PATCH as updateService } from "@/app/api/admin/services/route";
 import { GET as getPublicServices } from "@/app/api/services/route";
+import { GET as getAdminBookings } from "@/app/api/admin/bookings/route";
+import { GET as getAdminAvailability } from "@/app/api/admin/availability/route";
+import { GET as getAdminServices } from "@/app/api/admin/services/route";
 const smtpMock = (globalThis as typeof globalThis & { __integrationSmtpMock: { sendMail: ReturnType<typeof vi.fn> } }).__integrationSmtpMock;
 
 const cleanupBookingIds: mongoose.Types.ObjectId[] = [];
+const testRunId = randomUUID();
+const integrationLockId = new mongoose.Types.ObjectId("000000000000000000000001");
 const reservationDates: string[] = [];
 const rateLimitIds = new Set<string>();
 const defaultServiceNames = ["Manicure", "Gel Nails", "Overlay", "Nail Repair", "Buff & Shine"];
@@ -33,6 +39,7 @@ const admin = { id: new mongoose.Types.ObjectId().toString(), email: "integratio
 let service: mongoose.HydratedDocument<InstanceType<typeof Service>>;
 let availabilityId: mongoose.Types.ObjectId;
 let safeToCleanup = false;
+let testLockAcquired = false;
 let dayCounter = 1;
 let ipCounter = 30;
 
@@ -72,7 +79,7 @@ async function postBooking(body: ReturnType<typeof bookingBody>, key: string) {
 async function createPending(date: string, time = "10:00") {
   reservationDates.push(date);
   const booking = await Booking.create({
-    reference: `IT-${randomUUID()}`,
+    reference: `IT-${testRunId}-${randomUUID()}`,
     customer: { name: "Integration Customer", phone: "+27813179144", email: "customer@example.test" },
     service: { id: service._id, name: service.name, durationMinutes: 60 },
     description: "Integration test booking",
@@ -95,9 +102,18 @@ async function adminAction(id: string, action: string, extra: Record<string, str
 
 beforeAll(async () => {
   await connectDb();
+  const database = mongoose.connection.db;
+  if (!database) throw new Error("The isolated test database connection is unavailable.");
+  try {
+    await database.collection("sbosh_integration_locks").insertOne({ _id: integrationLockId, runId: testRunId, startedAt: new Date() });
+    testLockAcquired = true;
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === 11000)) throw error;
+    throw new Error("Another integration run is active or a prior run left a lock in the test database. No records were changed.");
+  }
   sessionState.value = adminCookieValue(admin);
   const counts = await Promise.all([
-    Booking.countDocuments(), Service.countDocuments(), Availability.countDocuments(), Counter.countDocuments(),
+    Admin.countDocuments(), Booking.countDocuments(), Service.countDocuments(), Availability.countDocuments(), Counter.countDocuments(),
     ReservationDay.countDocuments(), RateLimit.countDocuments(),
   ]);
   if (counts.some((count) => count !== 0)) {
@@ -106,7 +122,7 @@ beforeAll(async () => {
   safeToCleanup = true;
   await Promise.all([Booking, Service, Availability, ReservationDay, RateLimit, Counter].map((model) => model.createIndexes()));
 
-  service = await Service.create({ name: `Integration service ${randomUUID()}`, description: "Test", durationMinutes: 60, active: true });
+  service = await Service.create({ name: `Integration service ${testRunId}`, description: "Test", durationMinutes: 60, active: true });
   const weekly = Array.from({ length: 7 }, (_, weekday) => ({ weekday, enabled: true, periods: [{ open: "09:00", close: "18:00" }] }));
   const availability = await Availability.create({ weekly, exceptions: [], blockedDates: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0, timeZone: "Africa/Johannesburg" });
   availabilityId = availability._id;
@@ -127,15 +143,30 @@ afterAll(async () => {
   } finally {
     sessionState.value = "";
     sessionState.queue = [];
+    if (testLockAcquired) await mongoose.connection.db?.collection("sbosh_integration_locks").deleteOne({ _id: integrationLockId, runId: testRunId });
     await mongoose.disconnect();
   }
 });
 
 describe("MongoDB booking and reservation integration", () => {
+  it("rejects unauthenticated access to administrative APIs", async () => {
+    sessionState.value = "";
+    try {
+      const responses = await Promise.all([
+        getAdminBookings(new Request("http://localhost/api/admin/bookings")),
+        getAdminAvailability(),
+        getAdminServices(),
+      ]);
+      expect(responses.map((response) => response.status)).toEqual([401, 401, 401]);
+    } finally {
+      sessionState.value = adminCookieValue(admin);
+    }
+  });
+
   it("replays an idempotent booking before rechecking later availability and rejects key reuse with different details", async () => {
     const date = nextDate();
     reservationDates.push(date);
-    const key = `retry-${randomUUID()}`;
+    const key = `${testRunId}-retry-${randomUUID()}`;
     const body = { ...bookingBody(date), name: "<img src=x onerror=alert(1)> Client" };
     const first = await postBooking(body, key);
     expect(first.response.status).toBe(201);
@@ -163,7 +194,7 @@ describe("MongoDB booking and reservation integration", () => {
     const date = nextDate();
     reservationDates.push(date);
     const body = bookingBody(date);
-    const key = `parallel-${randomUUID()}`;
+    const key = `${testRunId}-parallel-${randomUUID()}`;
     const sameKey = await Promise.all(Array.from({ length: 6 }, () => postBooking(body, key)));
     expect(sameKey.filter(({ response }) => response.status === 201)).toHaveLength(1);
     expect(sameKey.every(({ response }) => [200, 201].includes(response.status))).toBe(true);
@@ -173,10 +204,15 @@ describe("MongoDB booking and reservation integration", () => {
     expect(single?.notifications.filter((notice: { type: string }) => notice.type === "ADMIN_NEW_BOOKING")).toHaveLength(1);
 
     const distinct = await Promise.all([
-      postBooking(body, `distinct-a-${randomUUID()}`),
-      postBooking(body, `distinct-b-${randomUUID()}`),
+      postBooking(body, `${testRunId}-distinct-a-${randomUUID()}`),
+      postBooking(body, `${testRunId}-distinct-b-${randomUUID()}`),
     ]);
     expect(distinct.every(({ response }) => response.status === 201)).toBe(true);
+    const references = distinct.map(({ result }) => result.reference as string);
+    expect(references.every((reference) => /^#SBS\d+$/.test(reference))).toBe(true);
+    expect(new Set(references).size).toBe(2);
+    const sequences = references.map((reference) => Number(reference.slice(4))).sort((a, b) => a - b);
+    expect(sequences[1]).toBe(sequences[0] + 1);
     const pending = await Booking.find({ reference: { $in: distinct.map(({ result }) => result.reference) } });
     expect(pending.every((booking) => booking.status === "PENDING")).toBe(true);
     expect(await ReservationDay.findOne({ date })).toBeNull();
@@ -199,7 +235,7 @@ describe("MongoDB booking and reservation integration", () => {
   it("keeps a failed new-booking email retryable and retries without another booking or notification", async () => {
     const date = nextDate();
     reservationDates.push(date);
-    const key = `email-fail-${randomUUID()}`;
+    const key = `${testRunId}-email-fail-${randomUUID()}`;
     const body = bookingBody(date);
     smtpMock.sendMail.mockRejectedValueOnce(new Error("fake SMTP failure"));
     const first = await postBooking(body, key);
@@ -225,7 +261,7 @@ describe("MongoDB booking and reservation integration", () => {
   it("recovers only stale SENDING notifications through the atomic retry claim", async () => {
     const date = nextDate();
     reservationDates.push(date);
-    const created = await postBooking(bookingBody(date), `stale-${randomUUID()}`);
+    const created = await postBooking(bookingBody(date), `${testRunId}-stale-${randomUUID()}`);
     const booking = await Booking.findOne({ reference: created.result.reference });
     if (!booking) throw new Error("Test booking was not saved.");
     const notificationId = String(booking.notifications[0]._id);

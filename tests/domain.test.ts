@@ -83,6 +83,18 @@ describe("appointment availability", () => {
     expect(await slotsFor(nextMonday, 120)).toContain("15:00");
     expect(await slotsFor(nextMonday, 120)).not.toContain("15:30");
   });
+  it("carries the recurring weekday schedule across a month boundary", async () => {
+    const date = "2099-01-29";
+    const nextWeek = new Date(date + "T12:00:00Z");
+    nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
+    const nextMonthDate = nextWeek.toISOString().slice(0, 10);
+    const weekday = new Date(date + "T12:00:00Z").getUTCDay();
+    schedule = { weekly: [{ weekday, enabled: true, periods: [{ open: "09:00", close: "17:00" }] }], blockedDates: [date], exceptions: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0 };
+    reservations = null;
+    expect(nextMonthDate.slice(5, 7)).toBe("02");
+    expect(await slotsFor(date, 120)).toEqual([]);
+    expect(await slotsFor(nextMonthDate, 120)).toContain("15:00");
+  });
   it("ignores old one-off openings and retains old closed exceptions", async () => {
     const date = nextDate();
     const weekday = new Date(date + "T12:00:00Z").getUTCDay();
