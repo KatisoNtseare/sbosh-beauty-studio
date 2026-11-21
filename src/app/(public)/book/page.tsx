@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import BookingForm from "@/components/booking/BookingForm";
 import PageIntro from "@/components/layouts/PageIntro";
 import { Suspense } from "react";
+import { businessProfile } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Book an appointment | SBOSH Beauty Studio",
-  description:
-    "Choose a nail service and preferred time, then call or WhatsApp SBOSH Beauty Studio to confirm pricing and availability.",
+  title: "Book an appointment",
+  description: `Choose a nail service and preferred time, then call or WhatsApp ${businessProfile.name} to confirm pricing and availability.`,
 };
 
 export default function BookingPage() {

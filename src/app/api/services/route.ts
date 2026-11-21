@@ -5,7 +5,10 @@ const initial = ["Manicure", "Gel Nails", "Overlay", "Nail Repair", "Buff & Shin
 export async function GET() {
   try {
     await connectDb();
-    await Promise.all(initial.map((name) => Service.updateOne({ name }, { $setOnInsert: { name, image: "/images/hero.jpg", active: true } }, { upsert: true })));
-    return Response.json({ services: await Service.find({ active: true }).select("name description image priceLabel durationMinutes").sort({ name: 1 }).lean() });
+    await Promise.all(initial.map(async (name) => {
+      try { await Service.updateOne({ name }, { $setOnInsert: { name, image: "/images/hero.jpg", active: true, category: "Nail services" } }, { upsert: true }); }
+      catch (error) { if (!(error && typeof error === "object" && "code" in error && error.code === 11000)) throw error; }
+    }));
+    return Response.json({ services: await Service.find({ active: true }).select("name description fullDescription image priceLabel minimumPrice maximumPrice durationMinutes category displayOrder").sort({ displayOrder: 1, name: 1 }).lean() });
   } catch { return Response.json({ error: "Services are temporarily unavailable." }, { status: 503 }); }
 }

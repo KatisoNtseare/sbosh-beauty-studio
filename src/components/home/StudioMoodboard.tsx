@@ -1,3 +1,5 @@
+import { businessProfile } from "@/lib/brand";
+
 const studies = [
   { name: "Warm light", color: "bg-[#ddd0b9]", sun: "bg-[#c7887f]", shape: "mood-arch" },
   { name: "Soft colour", color: "bg-[#d8b9ad]", sun: "bg-[#eee0c9]", shape: "mood-bloom" },
@@ -7,7 +9,7 @@ const studies = [
 
 export default function StudioMoodboard() {
   return (
-    <div role="img" aria-label="Four abstract illustrations in the SBOSH studio moodboard">
+    <div role="img" aria-label={`Four abstract illustrations in the ${businessProfile.name} moodboard`}>
       <div className="grid grid-cols-2 gap-2.5 md:gap-3">
         {studies.map((study) => (
           <figure key={study.name} className={`mood-tile ${study.color}`}>

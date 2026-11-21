@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import PageIntro from "@/components/layouts/PageIntro";
+import { businessProfile } from "@/lib/brand";
 import StudioMoodboard from "@/components/home/StudioMoodboard";
 
 export const metadata: Metadata = {
-  title: "Studio moodboard | SBOSH Beauty Studio",
-  description: "An illustrated moodboard for the calm, considered feeling behind SBOSH Beauty Studio.",
+  title: "Studio moodboard",
+  description: `An illustrated moodboard for the calm, considered feeling behind ${businessProfile.name}.`,
 };
 
 export default function GalleryPage() {

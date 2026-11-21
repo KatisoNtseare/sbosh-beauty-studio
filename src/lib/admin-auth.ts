@@ -12,17 +12,23 @@ export function credentialsConfigured() {
 export async function validAdminSession() {
   if (!credentialsConfigured()) return false;
   const value = (await cookies()).get(COOKIE)?.value ?? "";
-  const [encodedEmail, signature] = value.split(".");
-  if (!encodedEmail || !signature) return false;
-  const email = Buffer.from(encodedEmail, "base64url").toString();
-  if (email !== process.env.ADMIN_EMAIL) return false;
-  const expected = sign(encodedEmail);
-  return signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  const [encodedPayload, signature] = value.split(".");
+  if (!encodedPayload || !signature) return false;
+  const expected = sign(encodedPayload);
+  if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString()) as { email?: string; expiresAt?: number };
+    return payload.email === process.env.ADMIN_EMAIL && Number(payload.expiresAt) > Date.now();
+  } catch { return false; }
 }
 
 export function adminCookieValue() {
-  const encodedEmail = Buffer.from(process.env.ADMIN_EMAIL!).toString("base64url");
-  return `${encodedEmail}.${sign(encodedEmail)}`;
+  const payload = Buffer.from(JSON.stringify({ email: process.env.ADMIN_EMAIL, expiresAt: Date.now() + 8 * 60 * 60 * 1000 })).toString("base64url");
+  return `${payload}.${sign(payload)}`;
+}
+
+export function adminIdentity() {
+  return { id: process.env.ADMIN_EMAIL!, name: process.env.ADMIN_NAME || process.env.ADMIN_EMAIL! };
 }
 
 export const adminCookieName = COOKIE;

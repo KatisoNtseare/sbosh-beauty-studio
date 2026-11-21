@@ -1,10 +1,15 @@
-import Link from "next/link";
-import StudioMoodboard from "@/components/home/StudioMoodboard";
-import { serviceGroups, studioContact } from "@/lib/data";
+"use client";
 
-const treatments = serviceGroups.flatMap((group) => group.treatments);
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import StudioMoodboard from "@/components/home/StudioMoodboard";
+import { studioContact } from "@/lib/data";
+
+type Treatment = { _id: string; name: string };
 
 export default function NailMenuAndMoodboard() {
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
+  useEffect(() => { fetch("/api/services").then((r) => r.json()).then((d) => setTreatments(d.services ?? [])).catch(() => setTreatments([])); }, []);
   return (
     <section className="px-6 py-20 md:px-16 md:py-28">
       <div className="mx-auto grid max-w-7xl gap-16 lg:grid-cols-[0.86fr_1.14fr] lg:gap-24">
@@ -23,9 +28,7 @@ export default function NailMenuAndMoodboard() {
               </li>
             ))}
           </ul>
-          <p className="mt-4 max-w-sm text-xs leading-5 text-ink/60">
-            Contact the studio for service prices and appointment availability.
-          </p>
+          <p className="mt-4 max-w-sm text-xs leading-5 text-ink/60">Contact the studio for service prices and appointment availability.</p>
           <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-olive">
             <a href={studioContact.phoneHref} className="underline decoration-olive/40 underline-offset-4 hover:decoration-olive">Call {studioContact.phone}</a>
             <a href={studioContact.whatsappHref} className="underline decoration-olive/40 underline-offset-4 hover:decoration-olive">WhatsApp us</a>

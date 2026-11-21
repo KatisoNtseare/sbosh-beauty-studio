@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { buttonStyles } from "@/lib/button";
 import { cn } from "@/lib/utils";
+import { businessProfile } from "@/lib/brand";
 
 const links = [
   { href: "/", label: "Home" },
@@ -24,10 +25,10 @@ export default function Navbar() {
         <Link
           href="/"
           onClick={() => setMenuOpen(false)}
-          aria-label="SBOSH Beauty Studio home"
+          aria-label={`${businessProfile.name} home`}
           className="shrink-0 font-display text-[30px] font-semibold leading-[0.82] tracking-[0.12em] text-gold-dark"
         >
-          SBOSH
+          {businessProfile.logo}
           <span className="mt-2 block font-sans text-[8px] font-medium tracking-[0.34em] text-gold">
             BEAUTY STUDIO
           </span>

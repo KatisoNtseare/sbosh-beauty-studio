@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { studioContact } from "@/lib/data";
+import { businessProfile } from "@/lib/brand";
 
 const footerLinks = [
   { label: "Services", href: "/services" },
@@ -14,7 +15,7 @@ export default function Footer() {
       <div className="mx-auto grid max-w-7xl gap-9 sm:grid-cols-[1fr_1fr_1.1fr] sm:items-start">
         <div>
           <Link href="/" className="font-display text-3xl font-semibold tracking-[0.12em]">
-            SBOSH
+            {businessProfile.logo}
           </Link>
           <p className="mt-2 max-w-xs text-sm leading-relaxed text-cream/75">
             A little room to pause, reset and feel like yourself.
@@ -34,7 +35,7 @@ export default function Footer() {
           <a href={studioContact.phoneHref} className="w-fit hover:text-white">{studioContact.phone}</a>
           <a href={studioContact.mapHref} target="_blank" rel="noreferrer" className="max-w-xs leading-5 hover:text-white">{studioContact.address}</a>
           <a href={studioContact.whatsappHref} target="_blank" rel="noreferrer" className="mt-1 w-fit font-semibold text-white underline decoration-white/50 underline-offset-4 hover:decoration-white">WhatsApp the studio ↗</a>
-          <p className="mt-3 text-[11px] text-cream/60">© 2026 SBOSH Beauty Studio</p>
+          <p className="mt-3 text-[11px] text-cream/60">© 2026 {businessProfile.name}</p>
         </div>
       </div>
     </footer>

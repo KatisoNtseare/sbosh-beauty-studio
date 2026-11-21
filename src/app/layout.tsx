@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { businessProfile } from "@/lib/brand";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -17,9 +18,9 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "SBOSH Beauty Studio",
+  title: { default: businessProfile.name, template: `%s | ${businessProfile.name}` },
   description:
-    "Manicures, gel nails, overlays, nail repair, and buff & shine at SBOSH Beauty Studio in Bram Fischerville, Roodepoort.",
+    `Manicures, gel nails, overlays, nail repair, and buff & shine at ${businessProfile.name} in Bram Fischerville, Roodepoort.`,
 };
 
 export default function RootLayout({

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import PageIntro from "@/components/layouts/PageIntro";
+import { businessProfile } from "@/lib/brand";
 import { buttonStyles } from "@/lib/button";
 import { cn } from "@/lib/utils";
 import { studioContact } from "@/lib/data";
 
 export const metadata: Metadata = {
-  title: "Our approach | SBOSH Beauty Studio",
-  description: "Manicure, gel nails, overlay, nail repair, and buff & shine at SBOSH Beauty Studio in Bram Fischerville, Roodepoort.",
+  title: "Our approach",
+  description: `Manicure, gel nails, overlay, nail repair, and buff & shine at ${businessProfile.name} in Bram Fischerville, Roodepoort.`,
 };
 
 const principles = [
@@ -28,7 +29,7 @@ export default function AboutPage() {
   return (
     <div className="mx-auto max-w-7xl px-6 py-14 md:px-16 md:py-20">
       <PageIntro
-        eyebrow="The SBOSH approach"
+        eyebrow="Our approach"
         title="A studio for your pause."
         lead="Nail care can be more than the finished look. It can be a chance to slow down, feel cared for and leave with a little more ease."
       />

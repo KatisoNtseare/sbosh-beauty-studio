@@ -1,62 +1,106 @@
-# Sbosh Beauty Studio
+# Sbosh's Beauty Studio
 
-Customer service booking requests and a private salon administration area built with Next.js 16, React 19, TypeScript, MongoDB, and Mongoose.
+Responsive nail studio website and appointment request/admin system for the Bram Fischerville, Roodepoort salon. Customers request a service and preferred time; the studio reviews the request and confirms it manually.
 
-## Booking workflow
+## Stack
 
-1. The home page reads the active service menu from MongoDB. The first visit seeds only the confirmed services: Manicure, Gel Nails, Overlay, Nail Repair, and Buff & Shine. Prices, durations, and descriptions remain unset until staff configure them.
-2. Customers choose a service, an administrator-configured date and time, their contact details, and a full description (up to 5,000 characters).
-3. The request is saved as `PENDING` with a reference and service snapshot. A request is not an appointment confirmation.
-4. An administrator reviews the request at `/admin`, then approves a configured available time or rejects it with an optional reason.
-5. WhatsApp links open a manually prefilled message. Staff must separately record that the message was sent. No message or email is sent by the application.
-6. Approved appointments can be marked complete. Completion releases the time for future availability and preserves the booking history.
+- Next.js 16 App Router, React 19, TypeScript
+- MongoDB Atlas with Mongoose
+- Tailwind CSS 4 and React Icons
+- Vitest for unit and schema tests
+- Cloudinary REST API for service images (optional; server-side credentials only)
 
-## Database records
+## Project structure
 
-- `Service`: confirmed menu and configurable description, image, price label, and duration.
-- `Booking`: customer request, submitted service snapshot, preferences, decision history, and WhatsApp send tracking.
-- `Availability`: weekly schedule, exceptions, blocked dates, slot step, buffer, and salon timezone.
-- `ReservationDay`: one atomic document per local date containing confirmed appointment intervals.
-
-## Collision protection
-
-Approval writes to a single `ReservationDay` document using an atomic conditional update. Its filter rejects any interval where `newStart < existingEnd && newEnd > existingStart`, so concurrent admins cannot reserve overlapping appointments even when MongoDB transactions are unavailable. Pending requests do not reserve time. Completion removes the reservation while keeping the booking record. Keep appointment lengths to a single calendar day; overnight services are not supported.
-
-## Setup
-
-Create `.env.local` in the project root:
-
-```dotenv
-MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<database>?retryWrites=true&w=majority
-AUTH_SECRET=<long-random-secret-at-least-32-characters>
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=<strong-unique-password>
-APP_TIMEZONE=Africa/Johannesburg
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+```text
+src/app/                  Public pages, admin page, route handlers
+src/components/           Public website, booking and admin UI
+src/lib/                  Brand profile, database, domain and scheduling helpers
+src/models/                MongoDB service, booking, schedule, reservation and rate-limit models
+public/images/            Local website imagery and fallbacks
+tests/                     Unit, scheduling and schema tests
 ```
 
-The administrator credentials are required for `/admin`; the app fails closed when they are missing. Use a strong unique password and keep `.env.local` out of source control. MongoDB Atlas must allow connections from the deployed application. Set the runtime timezone to `Africa/Johannesburg`.
+## Install and run
+
+1. Install Node.js 20.9 or newer and MongoDB Atlas credentials for a development database.
+2. Copy `.env.example` to `.env.local` and set each required value. Keep `.env.local` untracked.
+3. Run `npm install`, `npm run dev`, then open `http://localhost:3000`.
+4. Sign in at `/admin`, configure service durations and opening hours, then test a booking request.
+
+## Environment variables
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `MONGODB_URI` | Yes | MongoDB connection string for this environment/database |
+| `AUTH_SECRET` | Yes | Random server secret of at least 32 characters for signing admin sessions |
+| `ADMIN_EMAIL` | Yes | Initial administrator login and audit identity |
+| `ADMIN_PASSWORD` | Yes | Initial administrator password, kept only in server environment |
+| `ADMIN_NAME` | No | Name shown in admin history; defaults to the admin email |
+| `APP_TIMEZONE` | No | Salon timezone; scheduling is fixed to `Africa/Johannesburg` |
+| `NEXT_PUBLIC_APP_URL` | No | Public application URL |
+| `CLOUDINARY_CLOUD_NAME` | No | Cloudinary account name for service image uploads |
+| `CLOUDINARY_API_KEY` | No | Cloudinary API key, used by server routes |
+| `CLOUDINARY_API_SECRET` | No | Cloudinary API secret, never sent to the browser |
+
+Cloudinary image management is disabled unless all three Cloudinary values are present. The application accepts JPG, PNG, and WebP service photos up to 5 MB, validates the file signature on the server, and sends uploads/deletes to Cloudinary from a protected route. It does not add another image provider.
+
+## Admin setup and service management
+
+Admin APIs require an HTTP-only, `SameSite=Strict` signed session cookie. Sessions expire after eight hours. Admin sign-in is limited through a MongoDB-backed fixed-window limiter. Configure `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`, and a strong random `AUTH_SECRET` in the deployment secret store. Never use production credentials in local tests.
+
+The first public service-menu request seeds the five confirmed services: Manicure, Gel Nails, Overlay, Nail Repair, and Buff & Shine. Prices, descriptions, and durations start blank. In `/admin` the owner can create, edit, order, activate/deactivate, or delete services, including short and full descriptions, category, price range, duration, and image. A service with historical bookings is archived rather than deleted. Each booking stores a service snapshot so later edits do not change its history.
+
+Only active services appear publicly. Book Now preselects the chosen service. A service cannot accept booking preferences until its duration is configured.
+
+## Customer booking flow
+
+Customers submit a name, WhatsApp number, optional email, selected service, preferred available date/time, and a full description (up to 5,000 characters). The server normalizes South African numbers to international format, retrieves service details from MongoDB, validates current availability, saves the original service snapshot, and creates a unique reference with `PENDING` status. A request is not a confirmed appointment.
+
+The public endpoint allows five requests per source IP per minute through MongoDB-backed rate limiting. Configure your hosting proxy to overwrite forwarded IP headers. All API errors returned to visitors are generic and do not include database details.
+
+## Availability and scheduling
+
+In `/admin`, configure each weekday with one or more working periods, shared breaks, per-date open/closed overrides, blocked dates, blocked time periods, service durations, slot step, and buffer. Availability is stored in MongoDB; no salon hours or treatment durations are hard-coded. The admin calendar separates confirmed visits from pending requests.
+
+Date keys use `YYYY-MM-DD` in `Africa/Johannesburg` and are not converted through UTC for display or matching. The scheduler subtracts breaks, blocked intervals, existing reservations, and configured buffers, using each selected service’s trusted duration.
+
+## Collision protection and MongoDB
+
+Collections:
+
+- `Service`: customer-facing descriptions, image references, category, price/duration and lifecycle.
+- `Booking`: customer request, service snapshot, status/audit history and manual WhatsApp records.
+- `Availability`: weekly periods, exceptions, blocked dates/times, breaks and buffers.
+- `ReservationDay`: one document per salon-local date with confirmed appointment intervals.
+- `rate_limits`: shared fixed-window request counters with TTL cleanup.
+
+Each reservation write uses a conditional atomic update on the unique date document. It rejects intervals that intersect using `newStart < existingEnd && newEnd > existingStart`; buffer minutes are included in the stored interval. Approval, rescheduling, cancellation and completion use MongoDB transactions when the deployment supports them. On standalone MongoDB, the app falls back to the conditional single-document reservation write plus a guarded booking-status update and compensating release. Pending requests never reserve a time.
+
+The MongoDB deployment must support transactions for atomic cross-document state changes; MongoDB Atlas does. The fallback still prevents concurrent overlaps, though a process crash between the reservation and booking updates can leave a stale interval that needs admin/database cleanup.
+
+## Manual WhatsApp communication
+
+No WhatsApp API, automated messages, or email integration is used. The admin page creates a prefilled `wa.me` URL only for the matching status: approved confirmation, rejected notification, or completed thank-you. International phone numbers and URL-encoded message text are used. Opening WhatsApp is not counted as sent. The administrator must confirm manually; the server then stores the booking ID, message type/content, administrator ID, timestamp, and `SENT_MANUALLY` status, and prevents a duplicate record for that message type.
+
+## Tests and checks
 
 ```bash
-npm install
-npm run dev
-```
-
-Visit `/admin`, sign in, and configure weekly opening hours, appointment step, buffer, and blocked dates. Use “Availability & services” to set a confirmed price, duration, and description for each service. Without configured hours, customers cannot select a date/time.
-
-## Security and operations
-
-- Public booking input is validated on the server; service price, name, and duration are read from MongoDB.
-- The public endpoint applies an in-process limit of five requests per source IP per minute. For horizontally scaled production hosting, replace this with a shared Redis or MongoDB rate limiter.
-- Admin APIs require a signed, HTTP-only, same-site session cookie. Use HTTPS in production.
-- Never store actual customer credentials in this repository or share `.env.local` values.
-
-## Verification
-
-```bash
+npm test
 npm run lint
 npx tsc --noEmit
 npm run build
 ```
 
-There is no configured test runner in this repository. End-to-end booking verification requires a reachable MongoDB database, configured admin credentials, and a schedule set through `/admin`.
+The test suite covers input validation, service snapshots/lifecycle policy, allowed status/message mapping, phone normalization, message encoding, salon-local slot calculations, breaks/exceptions/blocked intervals, overlap rules, and declared MongoDB indexes. It does not connect to production Atlas. Run a replica-set MongoDB integration test in a dedicated isolated environment before deployment to verify transaction and concurrent approval behavior end to end.
+
+## Production checklist
+
+- Use a dedicated production Atlas database and allow network access only from the deployment environment.
+- Configure a replica-set/sharded MongoDB deployment for transactions.
+- Set admin credentials, a random 32+ character `AUTH_SECRET`, and Cloudinary server secrets in the platform secret store.
+- Configure the reverse proxy to sanitize/overwrite `X-Forwarded-For` and use HTTPS.
+- Set and review service durations, prices, photos, opening periods, breaks, buffers, exceptions, and blocked intervals in `/admin`.
+- Run tests, lint, type checks, and production build before release.
+- Verify service image upload, booking submission, approval, rescheduling, WhatsApp tracking, cancellation, and completion against a non-production database.
+- Back up MongoDB regularly and define retention/access rules for customer contact information.
