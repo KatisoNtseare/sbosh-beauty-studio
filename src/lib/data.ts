@@ -1,4 +1,4 @@
-export const CURRENCY = "$"; // change to "R" if you want rand
+export const CURRENCY = "R ";
 
 export type Treatment = { name: string; price?: number };
 export type ServiceGroup = { id: string; title: string; treatments: Treatment[] };
