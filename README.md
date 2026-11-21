@@ -74,7 +74,9 @@ Populate a development or production application's catalogue once from its own `
 npm run seed:catalogue
 ```
 
-The seed is additive: it inserts missing approved services/packages and configures only matching inactive `Setup placeholder` service records. Other existing catalogue records are left unchanged. It never resets collections or changes bookings. Run it separately for each intended Atlas environment. In a production shell, set `CONFIRM_PRODUCTION_CATALOGUE_SEED=yes` before running it. It does not assign appointment lengths. Review and confirm each service duration in `/admin` before customers can book it online. Price-pending additional services remain visible as “Price to be confirmed”; an admin must confirm the total with the customer before approval.
+The seed is additive and idempotent: it inserts missing approved services/packages and configures only matching inactive `Setup placeholder` service records. Other existing catalogue records are left unchanged. It never resets collections or changes bookings. Run it separately for each intended Atlas environment. In a production shell, set `CONFIRM_PRODUCTION_CATALOGUE_SEED=yes` before running it. It does not assign appointment lengths. Review and confirm each service duration in `/admin` before customers can book it online. Price-pending additional services remain visible as “Price to be confirmed”; an admin must confirm the total with the customer before approval.
+
+Before enabling the seeded catalogue, review existing services in the admin catalogue and compare names, categories, prices, descriptions and booking history with the approved list. Deactivate obsolete services from the admin screen so they are archived (rather than removed when bookings reference them); check that no active package depends on a service you plan to deactivate. Then run the seed and confirm the intended services, package components and durations in `/admin`. The seed does not archive arbitrary old services or overwrite customized services, booking snapshots, customer bookings or administrator accounts.
 
 | Category | Services and approved prices |
 | --- | --- |

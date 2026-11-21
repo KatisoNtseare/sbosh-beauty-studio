@@ -29,6 +29,7 @@ import { GET as getAdminBookings } from "@/app/api/admin/bookings/route";
 import { GET as getAdminAvailability } from "@/app/api/admin/availability/route";
 import { GET as getAdminServices } from "@/app/api/admin/services/route";
 import { GET as getAdminPackages } from "@/app/api/admin/packages/route";
+import { PATCH as updatePackage, DELETE as deletePackage } from "@/app/api/admin/packages/route";
 import { GET as getCatalogue } from "@/app/api/services/route";
 const smtpMock = (globalThis as typeof globalThis & { __integrationSmtpMock: { sendMail: ReturnType<typeof vi.fn> } }).__integrationSmtpMock;
 
@@ -411,5 +412,57 @@ describe("MongoDB booking and reservation integration", () => {
     expect(restored?.archivedAt).toBeUndefined();
     const visible = await (await getPublicServices()).json();
     expect(visible.services.some((item: { _id: string }) => item._id === service.id)).toBe(true);
+  });
+
+  it("updates packages, validates identifiers and compositions, and archives packages with booking history", async () => {
+    sessionState.value = adminCookieValue(admin);
+    const patch = (body: Record<string, unknown>) => updatePackage(new Request("http://localhost/api/admin/packages", {
+      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    }));
+    const updated = await patch({
+      id: packageFixture.id,
+      name: `Edited package ${testRunId}`,
+      description: "Edited package description",
+      serviceIds: [service.id, pedicure.id],
+      additionalDurationMinutes: 15,
+      displayOrder: 35,
+      active: true,
+    });
+    expect(updated.status).toBe(200);
+    expect((await updated.json()).package).toMatchObject({
+      name: `Edited package ${testRunId}`,
+      description: "Edited package description",
+      additionalDurationMinutes: 15,
+      displayOrder: 35,
+      active: true,
+    });
+    expect((await ServicePackage.findById(packageFixture._id))?.serviceIds.map(String)).toEqual([service.id, pedicure.id]);
+
+    expect((await patch({ id: "not-an-object-id", name: "Invalid", serviceIds: [service.id, pedicure.id] })).status).toBe(400);
+    expect((await patch({ id: packageFixture.id, name: "Duplicate composition", serviceIds: [service.id, service.id] })).status).toBe(400);
+
+    sessionState.value = "";
+    expect((await patch({ id: packageFixture.id, name: "Unauthorized", serviceIds: [service.id, pedicure.id] })).status).toBe(401);
+    sessionState.value = adminCookieValue(admin);
+
+    const deactivated = await patch({ id: packageFixture.id, name: `Edited package ${testRunId}`, description: "Edited package description", serviceIds: [service.id, pedicure.id], additionalDurationMinutes: 15, displayOrder: 35, active: false });
+    expect(deactivated.status).toBe(200);
+    expect((await deactivated.json()).package.active).toBe(false);
+    const reactivated = await patch({ id: packageFixture.id, name: `Edited package ${testRunId}`, description: "Edited package description", serviceIds: [service.id, pedicure.id], additionalDurationMinutes: 15, displayOrder: 35, active: true });
+    expect(reactivated.status).toBe(200);
+    expect((await reactivated.json()).package.active).toBe(true);
+
+    const historical = await Booking.create({
+      reference: `IT-${testRunId}-${randomUUID()}`,
+      customer: { name: "Historical Customer", phone: "+27813179144", email: "customer@example.test" },
+      service: { id: packageFixture._id, name: `Edited package ${testRunId}`, isPackage: true, components: [{ id: service._id, name: service.name, price: 190 }, { id: pedicure._id, name: pedicure.name, price: 110 }], price: 300 },
+      description: "Historical package booking", preferredDate: "2099-03-01", preferredTime: "10:00", totalPrice: 300, status: "COMPLETED",
+    });
+    cleanupBookingIds.push(historical._id);
+    const removed = await deletePackage(new Request(`http://localhost/api/admin/packages?id=${packageFixture.id}`, { method: "DELETE" }));
+    expect(removed.status).toBe(200);
+    expect((await removed.json()).archived).toBe(true);
+    expect((await ServicePackage.findById(packageFixture._id))?.active).toBe(false);
+    expect((await Booking.findById(historical._id))?.service).toMatchObject({ id: packageFixture._id, name: `Edited package ${testRunId}`, price: 300 });
   });
 });

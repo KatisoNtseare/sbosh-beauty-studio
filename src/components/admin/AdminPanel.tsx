@@ -293,7 +293,8 @@ function PackageEditor({ services, onMessage, onError }: { services: AdminServic
     finally { setSaving(false); }
   }
   async function updatePackage(item: AdminPackage, patch: Partial<AdminPackage>) {
-    try { const data = await responseData(await fetch("/api/admin/packages", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...item, ...patch }) })); setPackages(packages.map((existing) => existing._id === item._id ? data.package : existing)); onMessage("Package saved."); }
+    const { _id, ...fields } = item;
+    try { const data = await responseData(await fetch("/api/admin/packages", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...fields, ...patch, id: _id }) })); setPackages(packages.map((existing) => existing._id === item._id ? data.package : existing)); onMessage("Package saved."); }
     catch (reason) { onError(reason instanceof Error ? reason.message : "Package could not be saved."); }
   }
   async function removePackage(item: AdminPackage) {
