@@ -7,7 +7,10 @@ type NoticeType = "ADMIN_NEW_BOOKING" | "CUSTOMER_APPROVED" | "CUSTOMER_REJECTED
 type BookingMail = {
   reference: string;
   customer: { name: string; email: string; phone?: string };
-  service: { name: string; priceLabel?: string; minimumPrice?: number; maximumPrice?: number };
+  service: { name: string; priceLabel?: string; minimumPrice?: number; maximumPrice?: number; components?: { name: string; price?: number }[] };
+  extras?: { name: string; unitPrice?: number; method?: string; quantity?: number; subtotal?: number; componentName?: string }[];
+  totalPrice?: number;
+  priceNeedsConfirmation?: boolean;
   preferredDate: string;
   preferredTime: string;
   confirmedDate?: string;
@@ -19,6 +22,7 @@ type NotificationRecord = { _id: mongoose.Types.ObjectId | string; type: NoticeT
 const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 const salonDate = (value: string) => new Intl.DateTimeFormat("en-ZA", { dateStyle: "long", timeZone: "UTC" }).format(new Date(value + "T12:00:00Z"));
 const price = (service: { priceLabel?: string; minimumPrice?: number; maximumPrice?: number }) => service.priceLabel || (service.minimumPrice != null && service.maximumPrice != null ? "R" + service.minimumPrice + "–R" + service.maximumPrice : service.minimumPrice != null ? "From R" + service.minimumPrice : "Price to be confirmed");
+const priceLine = (booking: BookingMail) => booking.priceNeedsConfirmation ? "Price: To be confirmed by the studio" : typeof booking.totalPrice === "number" ? "Total: R" + booking.totalPrice : "Price: " + price(booking.service);
 
 function content(type: NoticeType, booking: BookingMail) {
   const customer = booking.customer; const service = booking.service; const reference = booking.reference;
@@ -27,10 +31,10 @@ function content(type: NoticeType, booking: BookingMail) {
   if (!date || !time) throw new Error("Appointment date or time is unavailable.");
   const title = type === "ADMIN_NEW_BOOKING" ? "New booking request" : type === "CUSTOMER_APPROVED" ? "Your appointment is approved" : "Update on your booking request";
   const text = type === "ADMIN_NEW_BOOKING"
-    ? [title, "Reference: " + reference, "Customer: " + customer.name, "Email: " + customer.email, "Phone: " + (customer.phone || "Not supplied"), "Service: " + service.name, "Price: " + price(service), "Requested: " + salonDate(date) + " at " + time, "Status: PENDING", "Notes: " + (booking.description || "None"), "Admin dashboard: " + (process.env.NEXT_PUBLIC_APP_URL || "") + "/admin"].join("\n")
+    ? [title, "Reference: " + reference, "Customer: " + customer.name, "Email: " + customer.email, "Phone: " + (customer.phone || "Not supplied"), "Service: " + service.name, ...(service.components ?? []).map((component) => `Includes: ${component.name}${typeof component.price === "number" ? ` · R${component.price}` : " · price to confirm"}`), ...(booking.extras ?? []).map((extra) => `Extra: ${extra.name}${extra.componentName ? ` · ${extra.componentName}` : ""} · ${extra.quantity} × R${extra.unitPrice} = R${extra.subtotal}`), priceLine(booking), ...(booking.priceNeedsConfirmation ? ["ACTION REQUIRED: Confirm the service price with the customer before approval."] : []), "Requested: " + salonDate(date) + " at " + time, "Status: PENDING", "Notes: " + (booking.description || "None"), "Admin dashboard: " + (process.env.NEXT_PUBLIC_APP_URL || "") + "/admin"].join("\n")
     : type === "CUSTOMER_APPROVED"
-      ? ["Hello " + customer.name + ",", "", "Your appointment request has been approved.", "Reference: " + reference, "Service: " + service.name, "Appointment: " + salonDate(date) + " at " + time, "", "We look forward to welcoming you.", businessProfile.name].join("\n")
-      : ["Hello " + customer.name + ",", "", "We’re sorry, but we could not accommodate your request.", "Reference: " + reference, "Service: " + service.name, "Requested: " + salonDate(date) + " at " + time, booking.rejectionReason ? "Reason: " + booking.rejectionReason : "", "Please contact the studio to discuss another suitable appointment.", businessProfile.name].filter(Boolean).join("\n");
+      ? ["Hello " + customer.name + ",", "", "Your appointment request has been approved.", "Reference: " + reference, "Service: " + service.name, ...(service.components ?? []).map((component) => `Includes: ${component.name}${typeof component.price === "number" ? ` · R${component.price}` : " · price to confirm"}`), ...(booking.extras ?? []).map((extra) => `Extra: ${extra.name}${extra.componentName ? ` · ${extra.componentName}` : ""} · ${extra.quantity} × R${extra.unitPrice} = R${extra.subtotal}`), priceLine(booking), "Appointment: " + salonDate(date) + " at " + time, "", "We look forward to welcoming you.", businessProfile.name].join("\n")
+      : ["Hello " + customer.name + ",", "", "We’re sorry, but we could not accommodate your request.", "Reference: " + reference, "Service: " + service.name, ...(service.components ?? []).map((component) => `Includes: ${component.name}${typeof component.price === "number" ? ` · R${component.price}` : " · price to confirm"}`), ...(booking.extras ?? []).map((extra) => `Extra: ${extra.name}${extra.componentName ? ` · ${extra.componentName}` : ""} · ${extra.quantity} × R${extra.unitPrice} = R${extra.subtotal}`), priceLine(booking), "Requested: " + salonDate(date) + " at " + time, booking.rejectionReason ? "Reason: " + booking.rejectionReason : "", "Please contact the studio to discuss another suitable appointment.", businessProfile.name].filter(Boolean).join("\n");
   const html = "<div style='font-family:Arial,sans-serif;color:#29271f;max-width:600px;margin:auto;padding:32px'><h1 style='color:#625a3a'>" + escapeHtml(title) + "</h1><p style='line-height:1.7;white-space:pre-line'>" + escapeHtml(text) + "</p><hr style='border:0;border-top:1px solid #ded9cc'><p style='font-size:13px;color:#746f62'>" + escapeHtml(businessProfile.name) + "</p></div>";
   return { subject: title + " · " + reference, text, html };
 }

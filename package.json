@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed:admin": "tsx scripts/seed-admin.ts",
+    "seed:catalogue": "tsx scripts/seed-catalogue.ts",
     "test": "vitest run",
     "test:db:init": "tsx scripts/init-test-replica.ts",
     "test:integration": "tsx tests/integration/run.ts",

@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { CustomerFields } from "@/lib/domain";
 
-export type BookingSubmission = { customer: CustomerFields; serviceId: string; date: string; time: string };
+export type BookingSubmission = { customer: CustomerFields; serviceId?: string; packageId?: string; extras?: { key: string; quantity: number }[]; date: string; time: string };
 
 export function bookingSubmissionFingerprint(input: BookingSubmission, secret: string) {
   if (secret.length < 32) throw new Error("A server secret is required to scope booking retries.");
@@ -10,7 +10,9 @@ export function bookingSubmissionFingerprint(input: BookingSubmission, secret: s
     phone: input.customer.phone ?? "",
     email: input.customer.email ?? "",
     description: input.customer.description,
-    serviceId: input.serviceId.toLowerCase(),
+    serviceId: input.serviceId?.toLowerCase() ?? "",
+    packageId: input.packageId?.toLowerCase() ?? "",
+    extras: [...(input.extras ?? [])].sort((a, b) => a.key.localeCompare(b.key)),
     date: input.date,
     time: input.time,
   });
@@ -20,7 +22,8 @@ export function bookingSubmissionFingerprint(input: BookingSubmission, secret: s
 export function sameBookingSubmission(booking: {
   idempotencyFingerprint?: string;
   customer: CustomerFields;
-  service: { id: unknown };
+  service: { id: unknown; isPackage?: boolean };
+  extras?: { key?: string; quantity?: number }[];
   description: string;
   preferredDate: string;
   preferredTime: string;
@@ -32,7 +35,8 @@ export function sameBookingSubmission(booking: {
       phone: booking.customer.phone ?? "",
       description: booking.description,
     },
-    serviceId: String(booking.service.id),
+    ...(booking.service.isPackage ? { packageId: String(booking.service.id) } : { serviceId: String(booking.service.id) }),
+    extras: (booking.extras ?? []).map((extra) => ({ key: extra.key ?? "", quantity: extra.quantity ?? 0 })),
     date: booking.preferredDate,
     time: booking.preferredTime,
   }, secret);

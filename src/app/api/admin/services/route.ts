@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { connectDb } from "@/lib/mongodb";
 import { validAdminSession } from "@/lib/admin-auth";
 import Service from "@/models/Service";
+import ServicePackage from "@/models/ServicePackage";
 import Booking from "@/models/Booking";
 import { classifyService, serviceRemovalAction, validateServiceFields } from "@/lib/domain";
 
@@ -53,7 +54,7 @@ export async function DELETE(request: Request) {
     await connectDb();
     const service = await Service.findById(id);
     if (!service) return Response.json({ error: "Service not found." }, { status: 404 });
-    const hasHistory = Boolean(await Booking.exists({ "service.id": service._id }));
+    const hasHistory = Boolean(await Booking.exists({ "service.id": service._id }) || await ServicePackage.exists({ serviceIds: service._id }));
     if (serviceRemovalAction(hasHistory) === "archive") {
       service.active = false; service.archivedAt = new Date(); await service.save();
       return Response.json({ service, archived: true });

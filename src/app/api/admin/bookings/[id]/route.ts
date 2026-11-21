@@ -5,7 +5,7 @@ import { slotsFor, validDate, minute } from "@/lib/availability";
 import Booking from "@/models/Booking";
 import Availability from "@/models/Availability";
 import { adminIdentity } from "@/lib/admin-auth";
-import { canTransitionBooking, classifyService, resolveAppointmentDuration } from "@/lib/domain";
+import { canTransitionBooking } from "@/lib/domain";
 import { addNotification, sendNotification } from "@/lib/email";
 import { ensureReservationDay, releaseInterval, reserveInterval, transactionUnsupported } from "@/lib/reservations";
 
@@ -93,7 +93,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if (body.action === "reschedule") {
       if (!canTransitionBooking(booking.status, "reschedule") || !booking.confirmedDate || !booking.confirmedStart) return Response.json({ error: "Only approved appointments can be rescheduled." }, { status: 409 });
       const date = String(body.date ?? ""); const startTime = String(body.time ?? "");
-      const duration = resolveAppointmentDuration(booking.service.classification || classifyService(booking.service.category, booking.service.name)); const start = minute(startTime); const end = start + duration;
+      const duration = booking.service.durationMinutes; if (typeof duration !== "number" || !Number.isInteger(duration) || duration <= 0) return Response.json({ error: "This booking has no configured appointment length. Update the service duration before rescheduling." }, { status: 409 }); const start = minute(startTime); const end = start + duration;
 
       if (!validDate(date) || start < 0 || end >= 1440 || !(await slotsFor(date, duration, String(booking._id))).includes(startTime)) return Response.json({ error: "That time is outside configured availability." }, { status: 409 });
       if (date === booking.confirmedDate && startTime === booking.confirmedStart) return Response.json({ booking: booking.toObject() });
@@ -118,7 +118,15 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if (body.action !== "approve") return Response.json({ error: "Unsupported action." }, { status: 400 });
     if (!canTransitionBooking(booking.status, "approve")) return Response.json({ error: "Only pending requests can be approved." }, { status: 409 });
     const date = String(body.date ?? booking.preferredDate); const startTime = String(body.time ?? booking.preferredTime);
-    const duration = resolveAppointmentDuration(booking.service.classification || classifyService(booking.service.category, booking.service.name)); const start = minute(startTime); const end = start + duration;
+    const duration = booking.service.durationMinutes; if (typeof duration !== "number" || !Number.isInteger(duration) || duration <= 0) return Response.json({ error: "This booking has no configured appointment length. Update the service duration before approving it." }, { status: 409 }); const start = minute(startTime); const end = start + duration;
+    let priceUpdate: Record<string, unknown> = {};
+    let priceHistoryNote = "";
+    if (booking.priceNeedsConfirmation) {
+      const confirmedPrice = Number(body.confirmedPrice);
+      if (body.priceConfirmedWithCustomer !== true || !Number.isSafeInteger(confirmedPrice) || confirmedPrice < 1) return Response.json({ error: "Confirm the agreed price with the customer and enter the amount before approving this request." }, { status: 409 });
+      priceUpdate = { totalPrice: confirmedPrice, priceNeedsConfirmation: false, priceConfirmedAt: now, priceConfirmedBy: admin.id };
+      priceHistoryNote = ` · Price confirmed with customer: R${confirmedPrice}`;
+    }
 
     const endTime = `${String(Math.floor(end / 60)).padStart(2,"0")}:${String(end % 60).padStart(2,"0")}`;
     if (!validDate(date) || start < 0 || end >= 1440 || !(await slotsFor(date, duration)).includes(startTime)) return Response.json({ error: "That time is outside configured availability." }, { status: 409 });
@@ -126,13 +134,13 @@ export async function PATCH(request: Request, { params }: Ctx) {
     await ensureReservationDay(date);
     const result = await runTransaction(async (session) => {
       if (!(await reserveInterval(date, booking._id, start, end, buffer, undefined, session))) throw new StateConflict();
-      const saved = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "APPROVED", confirmedDate: date, confirmedStart: startTime, confirmedEnd: endTime, approvedAt: now, decidedBy: admin.id }, $push: { history: { status: "APPROVED", at: now, by: admin.name } } }, { session });
+      const saved = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "APPROVED", confirmedDate: date, confirmedStart: startTime, confirmedEnd: endTime, approvedAt: now, decidedBy: admin.id, ...priceUpdate }, $push: { history: { status: "APPROVED", at: now, by: admin.name, note: priceHistoryNote } } }, { session });
       if (!saved.modifiedCount) throw new StateConflict();
     });
     if (result === "CONFLICT") return Response.json({ error: "This time was just taken or the booking changed. Refresh and try again." }, { status: 409 });
     if (result === "UNSUPPORTED") {
       if (!(await reserveInterval(date, booking._id, start, end, buffer))) return Response.json({ error: "This time was just taken. Choose another." }, { status: 409 });
-      const saved = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "APPROVED", confirmedDate: date, confirmedStart: startTime, confirmedEnd: endTime, approvedAt: now, decidedBy: admin.id }, $push: { history: { status: "APPROVED", at: now, by: admin.name } } });
+      const saved = await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "APPROVED", confirmedDate: date, confirmedStart: startTime, confirmedEnd: endTime, approvedAt: now, decidedBy: admin.id, ...priceUpdate }, $push: { history: { status: "APPROVED", at: now, by: admin.name, note: priceHistoryNote } } });
       if (!saved.modifiedCount) { await releaseInterval(date, booking._id, start, end); return Response.json({ error: "Booking changed; refresh and try again." }, { status: 409 }); }
     }
     const emailStatus = await customerNotice(id, "CUSTOMER_APPROVED");

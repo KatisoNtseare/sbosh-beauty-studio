@@ -19,6 +19,7 @@ import Availability from "@/models/Availability";
 import RateLimit from "@/models/RateLimit";
 import ReservationDay from "@/models/ReservationDay";
 import Service from "@/models/Service";
+import ServicePackage from "@/models/ServicePackage";
 import Counter from "@/models/Counter";
 import { POST as submitBooking } from "@/app/api/bookings/route";
 import { PATCH as updateBooking } from "@/app/api/admin/bookings/[id]/route";
@@ -27,6 +28,8 @@ import { GET as getPublicServices } from "@/app/api/services/route";
 import { GET as getAdminBookings } from "@/app/api/admin/bookings/route";
 import { GET as getAdminAvailability } from "@/app/api/admin/availability/route";
 import { GET as getAdminServices } from "@/app/api/admin/services/route";
+import { GET as getAdminPackages } from "@/app/api/admin/packages/route";
+import { GET as getCatalogue } from "@/app/api/services/route";
 const smtpMock = (globalThis as typeof globalThis & { __integrationSmtpMock: { sendMail: ReturnType<typeof vi.fn> } }).__integrationSmtpMock;
 
 const cleanupBookingIds: mongoose.Types.ObjectId[] = [];
@@ -34,9 +37,11 @@ const testRunId = randomUUID();
 const integrationLockId = new mongoose.Types.ObjectId("000000000000000000000001");
 const reservationDates: string[] = [];
 const rateLimitIds = new Set<string>();
-const defaultServiceNames = ["Manicure", "Gel Nails", "Overlay", "Nail Repair", "Buff & Shine"];
 const admin = { id: new mongoose.Types.ObjectId().toString(), email: "integration@example.test", name: "Integration Admin" };
 let service: mongoose.HydratedDocument<InstanceType<typeof Service>>;
+let pedicure: mongoose.HydratedDocument<InstanceType<typeof Service>>;
+let repair: mongoose.HydratedDocument<InstanceType<typeof Service>>;
+let packageFixture: mongoose.HydratedDocument<InstanceType<typeof ServicePackage>>;
 let availabilityId: mongoose.Types.ObjectId;
 let safeToCleanup = false;
 let testLockAcquired = false;
@@ -59,7 +64,7 @@ function bookingBody(date: string, time = "10:00") {
   };
 }
 
-async function postBooking(body: ReturnType<typeof bookingBody>, key: string) {
+async function postBooking(body: Record<string, unknown>, key: string) {
   const ip = `198.51.100.${ipCounter++}`;
   const window = Math.floor(Date.now() / 60_000);
   rateLimitIds.add(`public-booking:${window}:${createHash("sha256").update(ip).digest("hex")}`);
@@ -72,6 +77,7 @@ async function postBooking(body: ReturnType<typeof bookingBody>, key: string) {
   if (result.reference) {
     const saved = await Booking.findOne({ reference: result.reference }).select("_id");
     if (saved) cleanupBookingIds.push(saved._id);
+    if (typeof body.date === "string") reservationDates.push(body.date);
   }
   return { response, result };
 }
@@ -92,7 +98,7 @@ async function createPending(date: string, time = "10:00") {
   return booking;
 }
 
-async function adminAction(id: string, action: string, extra: Record<string, string> = {}) {
+async function adminAction(id: string, action: string, extra: Record<string, unknown> = {}) {
   return updateBooking(new Request(`http://localhost/api/admin/bookings/${id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
@@ -113,16 +119,19 @@ beforeAll(async () => {
   }
   sessionState.value = adminCookieValue(admin);
   const counts = await Promise.all([
-    Admin.countDocuments(), Booking.countDocuments(), Service.countDocuments(), Availability.countDocuments(), Counter.countDocuments(),
+    Admin.countDocuments(), Booking.countDocuments(), Service.countDocuments(), ServicePackage.countDocuments(), Availability.countDocuments(), Counter.countDocuments(),
     ReservationDay.countDocuments(), RateLimit.countDocuments(),
   ]);
   if (counts.some((count) => count !== 0)) {
     throw new Error("The isolated test database must be empty before integration tests run; no records were deleted.");
   }
   safeToCleanup = true;
-  await Promise.all([Booking, Service, Availability, ReservationDay, RateLimit, Counter].map((model) => model.createIndexes()));
+  await Promise.all([Booking, Service, ServicePackage, Availability, ReservationDay, RateLimit, Counter].map((model) => model.createIndexes()));
 
-  service = await Service.create({ name: `Integration service ${testRunId}`, description: "Test", durationMinutes: 60, active: true });
+  service = await Service.create({ name: `Integration service ${testRunId}`, description: "Test", price: 190, priceConfirmed: true, durationMinutes: 60, durationConfirmed: true, extras: [{ key: "nail-art", name: "Nail Art", unitPrice: 15, method: "PER_NAIL" }], active: true });
+  pedicure = await Service.create({ name: `Integration pedicure ${testRunId}`, description: "Test pedicure", price: 110, priceConfirmed: true, durationMinutes: 30, durationConfirmed: true, active: true });
+  repair = await Service.create({ name: `Integration repair ${testRunId}`, description: "Price to be confirmed", priceConfirmed: false, durationMinutes: 45, durationConfirmed: true, active: true });
+  packageFixture = await ServicePackage.create({ name: `Integration package ${testRunId}`, description: "Test pair", serviceIds: [service._id, pedicure._id], active: true, additionalDurationMinutes: 0 });
   const weekly = Array.from({ length: 7 }, (_, weekday) => ({ weekday, enabled: true, periods: [{ open: "09:00", close: "18:00" }] }));
   const availability = await Availability.create({ weekly, exceptions: [], blockedDates: [], blockedPeriods: [], breaks: [], slotMinutes: 30, bufferMinutes: 0, timeZone: "Africa/Johannesburg" });
   availabilityId = availability._id;
@@ -134,9 +143,10 @@ afterAll(async () => {
       if (cleanupBookingIds.length) await Booking.deleteMany({ _id: { $in: cleanupBookingIds } });
       if (reservationDates.length) await ReservationDay.deleteMany({ date: { $in: [...new Set(reservationDates)] } });
       if (availabilityId) await Availability.deleteOne({ _id: availabilityId });
+      if (packageFixture?._id) await ServicePackage.deleteOne({ _id: packageFixture._id });
+      if (repair?._id) await Service.deleteOne({ _id: repair._id });
+      if (pedicure?._id) await Service.deleteOne({ _id: pedicure._id });
       if (service?._id) await Service.deleteOne({ _id: service._id });
-      // These setup records can only have been inserted by the public service route after the empty-DB guard.
-      await Service.deleteMany({ name: { $in: defaultServiceNames } });
       if (rateLimitIds.size) await RateLimit.deleteMany({ _id: { $in: [...rateLimitIds] } });
       await Counter.deleteOne({ _id: "booking-reference" });
     }
@@ -156,8 +166,9 @@ describe("MongoDB booking and reservation integration", () => {
         getAdminBookings(new Request("http://localhost/api/admin/bookings")),
         getAdminAvailability(),
         getAdminServices(),
+        getAdminPackages(),
       ]);
-      expect(responses.map((response) => response.status)).toEqual([401, 401, 401]);
+      expect(responses.map((response) => response.status)).toEqual([401, 401, 401, 401]);
     } finally {
       sessionState.value = adminCookieValue(admin);
     }
@@ -335,6 +346,53 @@ describe("MongoDB booking and reservation integration", () => {
     expect(await reserveInterval(completed.preferredDate, new mongoose.Types.ObjectId(), 600, 660)).toBe(true);
   });
 
+  it("calculates service prices on the server and preserves the submitted snapshot", async () => {
+    const result = await postBooking({ ...bookingBody(nextDate()), extras: [{ key: "nail-art", quantity: 2 }], totalPrice: 1 }, `${testRunId}-price-${randomUUID()}`);
+    expect(result.response.status).toBe(201);
+    const booking = await Booking.findOne({ reference: result.result.reference });
+    expect(booking).toMatchObject({ totalPrice: 220, priceNeedsConfirmation: false });
+    expect(booking?.extras).toMatchObject([{ name: "Nail Art", quantity: 2, unitPrice: 15, subtotal: 30 }]);
+    await Service.updateOne({ _id: service._id }, { $set: { price: 500 } });
+    expect((await Booking.findById(booking?._id))?.totalPrice).toBe(220);
+    await Service.updateOne({ _id: service._id }, { $set: { price: 190 } });
+  });
+
+  it("calculates package prices from current components and snapshots package selections", async () => {
+    sessionState.value = adminCookieValue(admin);
+    const catalogue = await (await getCatalogue()).json();
+    const item = catalogue.packages.find((entry: { _id: string }) => entry._id === packageFixture.id);
+    expect(item).toMatchObject({ price: 300, priceConfirmed: true, durationMinutes: 90 });
+    const result = await postBooking({ ...bookingBody(nextDate()), serviceId: undefined, packageId: packageFixture.id, extras: [{ key: `${service.id}:nail-art`, quantity: 2 }], totalPrice: 0 }, `${testRunId}-package-${randomUUID()}`);
+    expect(result.response.status).toBe(201);
+    const booking = await Booking.findOne({ reference: result.result.reference });
+    expect(booking).toMatchObject({ totalPrice: 330, priceNeedsConfirmation: false, service: { isPackage: true, name: packageFixture.name, durationMinutes: 90 } });
+    expect(booking?.service.components).toHaveLength(2);
+    expect(booking?.extras[0].subtotal).toBe(30);
+    await Service.updateOne({ _id: pedicure._id }, { $set: { price: 125 } });
+    const updatedCatalogue = await (await getCatalogue()).json();
+    expect(updatedCatalogue.packages.find((entry: { _id: string }) => entry._id === packageFixture.id).price).toBe(315);
+    expect((await Booking.findById(booking?._id))?.totalPrice).toBe(330);
+    await Service.updateOne({ _id: pedicure._id }, { $set: { price: 110 } });
+  });
+
+  it("flags an unconfirmed service price and requires customer confirmation before approval", async () => {
+    const request = await postBooking({ ...bookingBody(nextDate()), serviceId: repair.id }, `${testRunId}-unconfirmed-${randomUUID()}`);
+    expect(request.response.status).toBe(201);
+    const booking = await Booking.findOne({ reference: request.result.reference });
+    expect(booking).toMatchObject({ totalPrice: null, priceNeedsConfirmation: true });
+    expect((await adminAction(booking!.id, "approve", { date: booking!.preferredDate, time: booking!.preferredTime })).status).toBe(409);
+    const approved = await adminAction(booking!.id, "approve", { date: booking!.preferredDate, time: booking!.preferredTime, confirmedPrice: 85, priceConfirmedWithCustomer: true });
+    expect(approved.status).toBe(200);
+    expect(await Booking.findById(booking!._id)).toMatchObject({ totalPrice: 85, priceNeedsConfirmation: false });
+  });
+
+  it("does not create setup templates when the public catalogue is viewed", async () => {
+    sessionState.value = adminCookieValue(admin);
+    const [publicResponse] = await Promise.all([getCatalogue()]);
+    expect(publicResponse.status).toBe(200);
+    expect(await Service.countDocuments({ category: "Setup placeholder" })).toBe(0);
+  });
+
   it("archives and reactivates a service while public listings only return active services", async () => {
     const body = { id: service.id, name: service.name, description: service.description, fullDescription: "", category: "Nail services", priceLabel: "", minimumPrice: "", maximumPrice: "", durationMinutes: "60", displayOrder: "0", active: false };
     const archivedResponse = await updateService(new Request("http://localhost/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
@@ -344,10 +402,7 @@ describe("MongoDB booking and reservation integration", () => {
     expect(archived?.archivedAt).toBeInstanceOf(Date);
     const hidden = await (await getPublicServices()).json();
     expect(hidden.services.some((item: { _id: string }) => item._id === service.id)).toBe(false);
-    expect(hidden.services.some((item: { name: string }) => defaultServiceNames.includes(item.name))).toBe(false);
-    const templates = await Service.find({ name: { $in: defaultServiceNames } }).lean();
-    expect(templates).toHaveLength(defaultServiceNames.length);
-    expect(templates.every((item) => item.active === false)).toBe(true);
+    expect(hidden.services.some((item: { _id: string }) => item._id === service.id)).toBe(false);
 
     const restoredResponse = await updateService(new Request("http://localhost/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, active: true }) }));
     expect(restoredResponse.status).toBe(200);

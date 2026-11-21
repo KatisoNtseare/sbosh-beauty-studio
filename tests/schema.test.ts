@@ -4,6 +4,7 @@ import Admin from "@/models/Admin";
 import RateLimit from "@/models/RateLimit";
 import ReservationDay from "@/models/ReservationDay";
 import Service from "@/models/Service";
+import ServicePackage from "@/models/ServicePackage";
 
 describe("MongoDB schema safeguards", () => {
   it("declares unique service names, booking references, and salon-day reservation documents", () => {
@@ -11,6 +12,10 @@ describe("MongoDB schema safeguards", () => {
     expect(Booking.schema.indexes().some(([index, options]) => index.reference === 1 && options.unique === true)).toBe(true);
     expect(Booking.schema.indexes().some(([index, options]) => index.idempotencyKey === 1 && options.unique === true && options.sparse === true)).toBe(true);
     expect(ReservationDay.schema.indexes().some(([index, options]) => index.date === 1 && options.unique === true)).toBe(true);
+    expect(ServicePackage.schema.indexes().some(([index, options]) => index.name === 1 && options.unique === true)).toBe(true);
+    expect((Service.schema.path("durationConfirmed") as unknown as { defaultValue: boolean }).defaultValue).toBe(false);
+    expect(Booking.schema.path("totalPrice")).toBeDefined();
+    expect(Booking.schema.path("priceNeedsConfirmation")).toBeDefined();
   });
 
   it("does not expose idempotency fingerprints by default", () => {

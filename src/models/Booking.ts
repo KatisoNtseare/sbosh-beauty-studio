@@ -11,10 +11,35 @@ const notificationSchema = new Schema({
   attemptedAt: Date,
 }, { _id: true });
 
+const serviceSnapshotSchema = new Schema({
+  id: { type: Schema.Types.ObjectId },
+  name: { type: String, required: true },
+  description: String,
+  fullDescription: String,
+  image: String,
+  priceLabel: String,
+  price: Number,
+  priceConfirmed: Boolean,
+  minimumPrice: Number,
+  maximumPrice: Number,
+  category: String,
+  classification: { type: String, enum: ["LASHES", "NAILS", "TOES", "GENERAL"] },
+  durationMinutes: Number,
+  isPackage: { type: Boolean, default: false },
+  components: [{ id: Schema.Types.ObjectId, name: String, price: Number, durationMinutes: Number }],
+}, { _id: false });
+
+const extraLineSchema = new Schema({ key: String, name: String, method: { type: String, enum: ["PER_NAIL", "PER_DESIGN"] }, unitPrice: Number, quantity: Number, subtotal: Number, durationMinutes: Number, componentId: String, componentName: String }, { _id: false });
+
 const bookingSchema = new Schema({
   reference: { type: String, required: true, unique: true, index: true },
   customer: { name: { type: String, required: true }, phone: { type: String, default: "" }, email: { type: String, lowercase: true, trim: true } },
-  service: { id: { type: Schema.Types.ObjectId, required: true }, name: { type: String, required: true }, description: String, fullDescription: String, image: String, priceLabel: String, minimumPrice: Number, maximumPrice: Number, category: String, classification: { type: String, enum: ["LASHES", "NAILS", "TOES", "GENERAL"] }, durationMinutes: Number },
+  service: { type: serviceSnapshotSchema, required: true },
+  extras: { type: [extraLineSchema], default: [] },
+  totalPrice: { type: Number, min: 0 },
+  priceNeedsConfirmation: { type: Boolean, default: false },
+  priceConfirmedAt: Date,
+  priceConfirmedBy: String,
   description: { type: String, default: "", maxlength: 5000 },
   preferredDate: { type: String, required: true }, preferredTime: { type: String, required: true },
   confirmedDate: String, confirmedStart: String, confirmedEnd: String,

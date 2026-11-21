@@ -60,20 +60,35 @@ In `/admin`, select a reference date to identify a weekday, set opening and clos
 
 Scheduling uses `Africa/Johannesburg` calendar dates and times. It respects weekly periods, closed dates, breaks, blocked periods, approved reservations and the configured slot interval and buffer. A time is offered only if the full appointment fits before closing.
 
-Appointment length is derived on the server from the service classification:
-
-- Lashes: 45 minutes
-- Nails: 120 minutes
-- Toes: 120 minutes
-- Other services: 120 minutes
-
-The admin service editor exposes the classification, not an editable duration. Legacy duration values are ignored for new requests. Existing booking snapshots and reservation intervals remain available for history.
+Each service has its own appointment length in minutes. An administrator must explicitly mark the length as confirmed before the service can be booked online. Legacy duration values are not treated as approved until reviewed in the editor. Package duration is the sum of its included service lengths plus any package time configured by the studio; selected extras add time only when an extra has an explicit duration configured. Availability is recalculated for the entire selected length and uses the existing recurring schedule, buffers and reservations.
 
 ## Admin and service setup
 
 Admin APIs require an HTTP-only, `SameSite=Strict` signed session cookie. Sessions expire after eight hours; sign-in uses a MongoDB-backed fixed-window limiter. Seed or reset the administrator from `.env.local` with `npm run seed:admin`; the password is stored as a salted scrypt hash.
 
-On an empty service collection, the public service menu creates inactive setup templates for Manicure, Gel Nails, Overlay, Nail Repair and Buff & Shine. Review names, classification, prices, descriptions and images in `/admin`, and activate only approved services. These templates are not publicly bookable until activated. Services with booking history are archived rather than deleted. Booking snapshots are not rewritten when a service is edited.
+### Approved catalogue
+
+Populate a development or production application's catalogue once from its own `MONGODB_URI`:
+
+```powershell
+npm run seed:catalogue
+```
+
+The seed is additive: it inserts missing approved services/packages and configures only matching inactive `Setup placeholder` service records. Other existing catalogue records are left unchanged. It never resets collections or changes bookings. Run it separately for each intended Atlas environment. In a production shell, set `CONFIRM_PRODUCTION_CATALOGUE_SEED=yes` before running it. It does not assign appointment lengths. Review and confirm each service duration in `/admin` before customers can book it online. Price-pending additional services remain visible as “Price to be confirmed”; an admin must confirm the total with the customer before approval.
+
+| Category | Services and approved prices |
+| --- | --- |
+| Acrylic Nail Sets | Plain Set R150 · Ombré Set R170 · French Set R190 |
+| Gel Nail Sets | Plain Gel Set R110 · Gel French Set R130 |
+| Pedicures | Plain Pedicure R110 · French Pedicure R130 · Plain Gel Pedicure R100 · Gel French Pedicure R120 |
+| Nail Care | Buff N' Shine R70 |
+| Additional Services | Acrylic Infills, Acrylic Removal / Soak-Off, Gel Removal and Nail Repair — prices to be confirmed |
+
+Optional extras are stored on compatible services: Nail Art (Gems/Rhinestones) R15 per nail, Chrome R20 per nail, 3D Effect R30 per design and Marble Effect R10 per design. Customers choose quantities on the booking page; the server checks compatibility and calculates each line. The browser never supplies an authoritative price.
+
+The five initial combinations are Plain Set + Plain Pedicure (R260), Ombré Set + Plain Pedicure (R280), French Set + French Pedicure (R320), Plain Gel Set + Plain Gel Pedicure (R210), and Gel French Set + Gel French Pedicure (R250). Package prices are calculated from current component prices, with no discount or separate package price field. Edit services, extras, categories, durations, images, active state and package components under **Admin → Availability & services**. Upload a service photo there later; existing default imagery remains in place until replaced. Missing images use `/images/hero.jpg`.
+
+Services with booking history or package references are archived instead of deleted. Each booking keeps the service/package name, component prices, extra quantities, per-unit prices, total and appointment length as a snapshot; later catalogue edits do not change existing booking records.
 
 Cloudinary image management is disabled unless all three Cloudinary settings are present. JPG, PNG and WebP uploads are limited to 5 MB and validated server-side.
 

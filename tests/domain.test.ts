@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Service from "@/models/Service";
 import Booking from "@/models/Booking";
-import { canTransitionBooking, classifyService, hasOverlappingInterval, resolveAppointmentDuration, serviceRemovalAction, snapshotService, validateCustomerFields, validateServiceFields } from "@/lib/domain";
+import { canTransitionBooking, classifyService, hasOverlappingInterval, serviceRemovalAction, snapshotService, validateCustomerFields, validateServiceFields } from "@/lib/domain";
 
 let schedule: Record<string, unknown>;
 let reservations: { reservations: { bookingId: string; start: number; end: number }[] } | null;
@@ -22,22 +22,20 @@ describe("service classification and lifecycle", () => {
     expect(classifyService("Beauty", "Toe treatment")).toBe("TOES");
     expect(classifyService("Other", "Consultation")).toBe("GENERAL");
   });
-  it("uses fixed scheduling durations regardless of customer input", () => {
-    expect(resolveAppointmentDuration("LASHES")).toBe(45);
-    expect(resolveAppointmentDuration("NAILS")).toBe(120);
-    expect(resolveAppointmentDuration("TOES")).toBe(120);
-    expect(resolveAppointmentDuration("GENERAL")).toBe(120);
-    expect(resolveAppointmentDuration("UNRECOGNIZED")).toBe(120);
+  it("keeps configured appointment lengths per service", () => {
+    expect(validateServiceFields({ name: "Lash fill", category: "Lashes", durationMinutes: 45 })?.durationConfirmed).toBe(false);
+    expect(validateServiceFields({ name: "Lash fill", category: "Lashes", durationMinutes: 45, durationConfirmed: true })?.durationConfirmed).toBe(true);
     expect(validateServiceFields({ name: "Nails", durationMinutes: 600 })?.classification).toBe("NAILS");
+    expect(validateServiceFields({ name: "Nail Repair" })?.durationMinutes).toBeUndefined();
   });
   it("validates service price ranges and classification", () => {
     expect(validateServiceFields({ name: "Gel Nails", minimumPrice: "200", maximumPrice: "350" })).toMatchObject({ minimumPrice: 200, maximumPrice: 350, classification: "NAILS", active: true });
     expect(validateServiceFields({ name: "X", minimumPrice: 400, maximumPrice: 200 })).toBeNull();
   });
-  it("keeps the submitted service snapshot independent from later edits", () => {
-    const submitted = snapshotService({ _id: "service-1", name: "Overlay", category: "Nails", minimumPrice: 250, durationMinutes: 75, description: "Short" });
-    expect(submitted).toMatchObject({ name: "Overlay", minimumPrice: 250, classification: "NAILS", durationMinutes: 120 });
-    expect(submitted).not.toHaveProperty("durationMinutes", 75);
+  it("keeps configured duration and price in the submitted service snapshot", () => {
+    const submitted = snapshotService({ _id: "service-1", name: "Overlay", category: "Nails", minimumPrice: 250, durationMinutes: 75, durationConfirmed: true, description: "Short" });
+    expect(submitted).toMatchObject({ name: "Overlay", minimumPrice: 250, classification: "NAILS", durationMinutes: 75 });
+    expect(snapshotService({ _id: "service-2", name: "Nail Repair", category: "Additional Services" }).durationMinutes).toBeUndefined();
   });
   it("archives services with history and declares unique model indexes", () => {
     expect(serviceRemovalAction(true)).toBe("archive");
