@@ -2,21 +2,18 @@
 @import "react-toastify/dist/ReactToastify.css";
 
 @theme inline {
-  --color-pink-primary: #b01862;
-  --color-pink-hot: #f72585;
-  --color-pink-blush: #fce7f3;
-  --color-pale-pink: #fff1f7;
-  --color-lavender: #ede9fe;
-  --color-plum: #581c4d;
-  --color-cream: #fff9fc;
-  --color-sand: #fce7f3;
-  --color-line: #f1c9dd;
-  --color-ink: #3a1f31;
-  --color-gold: #b01862;
-  --color-gold-dark: #581c4d;
-  --color-olive: #b01862;
-  --color-rose: #f72585;
-  --color-taupe: #e3bdd0;
+  --color-hot-pink: #e83e8c;
+  --color-rose-pink: #f28cb8;
+  --color-soft-blush: #fff0f6;
+  --color-pale-pink: #fce4ef;
+  --color-brand-white: #ffffff;
+  --color-deep-berry: #70264f;
+  --color-dark-plum: #39202f;
+  --color-brand-border: #f1c6d9;
+  --color-muted-text: #705b66;
+  --color-success: #16844a;
+  --color-warning: #946200;
+  --color-error: #b42348;
   --font-display: var(--font-cormorant), serif;
   --font-sans: var(--font-montserrat), sans-serif;
 }
@@ -36,23 +33,25 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: var(--color-cream);
-  color: var(--color-ink);
+  background: var(--color-brand-white);
+  color: var(--color-dark-plum);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 .Toastify__toast {
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--color-brand-border);
   border-radius: 0.8rem;
-  color: var(--color-ink);
+  color: var(--color-dark-plum);
   font-family: var(--font-sans);
   font-size: 0.875rem;
   box-shadow: 0 12px 36px rgb(46 44 39 / 0.14);
 }
 
-.Toastify__toast--success { border-color: var(--color-olive); }
-.Toastify__toast--error { border-color: var(--color-rose); }
+.Toastify__toast--success { border-color: var(--color-success); }
+.Toastify__toast--info { border-color: var(--color-hot-pink); }
+.Toastify__toast--warning { border-color: var(--color-warning); }
+.Toastify__toast--error { border-color: var(--color-error); }
 
 a,
 button,
@@ -85,14 +84,15 @@ textarea {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--color-plum);
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-deep-berry);
   outline-offset: 3px;
 }
 
 ::selection {
-  background: var(--color-plum);
-  color: var(--color-cream);
+  background: var(--color-deep-berry);
+  color: var(--color-brand-white);
 }
 
 @media (prefers-reduced-motion: reduce) {
