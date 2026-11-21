@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import BookingForm from "@/components/booking/BookingForm";
 import PageIntro from "@/components/layouts/PageIntro";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Book an appointment | SBOSH Beauty Studio",
@@ -17,7 +18,7 @@ export default function BookingPage() {
         lead="Choose a nail service and a preferred time. Call or WhatsApp the studio to confirm pricing and availability."
       />
       <div className="mt-8">
-        <BookingForm />
+        <Suspense fallback={<p className="py-10 text-sm text-ink/60">Preparing the booking form…</p>}><BookingForm /></Suspense>
       </div>
     </div>
   );
