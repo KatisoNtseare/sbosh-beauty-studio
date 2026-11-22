@@ -17,7 +17,7 @@ function smtpTransport(contactEmail: string = businessProfile.contact.email) {
   const host = (process.env.ZOHO_SMTP_HOST || process.env.ZohoSmtp_Host)?.trim();
   const user = (process.env.ZOHO_SMTP_USER || process.env.ZohoSmtp_Username)?.trim();
   const pass = process.env.ZOHO_SMTP_PASS || process.env.ZohoSmtp_Password;
-  const sender = (process.env.ZohoSmtp_FromEmail || user || contactEmail || "").trim();
+  const sender = (process.env.ZohoSmtp_FromEmail || contactEmail || user || "").trim();
   const senderName = (process.env.ZohoSmtp_FromName || businessProfile.name).trim();
   const port = Number(process.env.ZOHO_SMTP_PORT || process.env.ZohoSmtp_Port || 465);
   if (!host || !user || !pass || !Number.isInteger(port) || port < 1 || port > 65535) return null;
