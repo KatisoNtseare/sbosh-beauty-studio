@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "react-toastify";
 import { FaWhatsapp } from "react-icons/fa";
-import { FiBell, FiCalendar, FiClock, FiExternalLink, FiGrid, FiImage, FiInbox, FiList, FiLogOut, FiMenu, FiPackage, FiPlusCircle, FiSettings, FiTrash2, FiUpload, FiX } from "react-icons/fi";
+import { FiBell, FiCalendar, FiChevronLeft, FiChevronRight, FiClock, FiExternalLink, FiGrid, FiImage, FiInbox, FiList, FiLogOut, FiMenu, FiPackage, FiPlusCircle, FiSettings, FiTrash2, FiUpload, FiX } from "react-icons/fi";
 import type { IconType } from "react-icons";
 import { businessProfile, defaultCatalogueImage } from "@/lib/brand";
 import { calculateBookingStats } from "@/lib/admin-stats";
@@ -30,11 +30,22 @@ const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const input = "min-h-11 w-full rounded-xl border border-pale-blush bg-surface px-3 text-sm text-dark-text focus:border-brand-pink focus:outline-none focus:ring-2 focus:ring-brand-pink/15 disabled:opacity-50";
 type Section = "overview" | "bookings" | "calendar" | "services-list" | "services-add" | "packages" | "availability" | "gallery" | "site-settings";
 const card = "rounded-3xl border border-soft-border bg-surface p-5 shadow-sm md:p-7";
+const sidebarStorageKey = "sbosh-admin-sidebar-expanded";
 const primaryBtn = "min-h-11 rounded-xl bg-strong-pink px-5 text-sm font-semibold text-charcoal transition-colors hover:bg-deep-berry disabled:opacity-50";
 const secondaryBtn = "min-h-11 rounded-xl border border-soft-border bg-surface px-4 text-sm font-medium text-deep-berry transition-colors hover:bg-pale-blush";
 const blankPeriod = (): Period => ({ open: "09:00", close: "17:30" });
 const blankWeekly = (): Day[] => dayNames.map((_, weekday) => ({ weekday, enabled: true, periods: [blankPeriod()] }));
 const blankService = (): Omit<AdminService, "_id"> => ({ name: "", description: "", fullDescription: "", image: defaultCatalogueImage, imagePublicId: "", priceLabel: "", category: "Acrylic Nail Sets", classification: "NAILS", priceConfirmed: false, extras: [], displayOrder: 0, active: true });
+const sidebarChangeEvent = "sbosh-admin-sidebar-change";
+
+function subscribeSidebar(listener: () => void) {
+  window.addEventListener("storage", listener);
+  window.addEventListener(sidebarChangeEvent, listener);
+  return () => { window.removeEventListener("storage", listener); window.removeEventListener(sidebarChangeEvent, listener); };
+}
+
+function getSidebarExpanded() { return window.localStorage.getItem(sidebarStorageKey) !== "false"; }
+function getSidebarExpandedServerSnapshot() { return true; }
 
 async function responseData(response: Response) {
   const body = await response.json().catch(() => ({}));
@@ -44,6 +55,7 @@ async function responseData(response: Response) {
 
 export default function AdminPanel() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
   const [error, setError] = useState(""); const [notice, setNotice] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]); const [counts, setCounts] = useState<Record<string, number>>({});
@@ -51,9 +63,20 @@ export default function AdminPanel() {
   const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0); const [serviceNames, setServiceNames] = useState<string[]>([]); const [refreshVersion, setRefreshVersion] = useState(0);
   const [section, setSection] = useState<Section>("overview"); const [calendarDate, setCalendarDate] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const sidebarExpanded = useSyncExternalStore(subscribeSidebar, getSidebarExpanded, getSidebarExpandedServerSnapshot);
   const [greeting, setGreeting] = useState("Welcome back"); const [today, setToday] = useState("");
   const notifySuccess = useCallback((message: string) => { setNotice(message); toast.success(message); }, []);
   const notifyError = useCallback((message: string) => { setError(message); toast.error(message); }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/admin/session", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.json())
+      .then((data) => setAuthenticated(data.authenticated === true))
+      .catch(() => undefined)
+      .finally(() => { if (!controller.signal.aborted) setSessionChecked(true); });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const updateDateAndGreeting = () => {
@@ -94,6 +117,8 @@ export default function AdminPanel() {
   async function logout() { await fetch("/api/admin/logout", { method: "POST" }); setAuthenticated(false); }
   const filtered = bookings;
 
+  if (!authenticated && !sessionChecked) return <main className="grid min-h-screen place-items-center bg-pale-blush"><p className="text-sm text-dark-text/70">Checking your studio session…</p></main>;
+
   if (!authenticated) return <div className="fixed inset-0 z-[60] overflow-y-auto bg-charcoal lg:grid lg:grid-cols-2">
     <div className="relative hidden overflow-hidden bg-deep-berry p-14 text-charcoal lg:flex lg:flex-col lg:justify-between">
       <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(70%_60%_at_20%_0%,rgb(227_181_160/0.22),transparent)]"/>
@@ -117,6 +142,7 @@ export default function AdminPanel() {
   const stats = calculateBookingStats(counts);
   const go = (id: Section) => { setSection(id); setError(""); setNotice(""); setMenuOpen(false); };
   const goBookings = (nextStatus: string) => { setStatus(nextStatus); setPage(1); go("bookings"); };
+  const toggleSidebar = () => { window.localStorage.setItem(sidebarStorageKey, String(!sidebarExpanded)); window.dispatchEvent(new Event(sidebarChangeEvent)); };
   const statusLabel = (value: string) => (value === "ALL" ? "All" : value.charAt(0) + value.slice(1).toLowerCase());
   const navGroups: { label?: string; items: { id: Section; label: string; Icon: IconType; badge?: number }[] }[] = [
     { items: [{ id: "overview", label: "Overview", Icon: FiGrid }] },
@@ -137,14 +163,22 @@ export default function AdminPanel() {
 
   return <div className="min-h-screen bg-pale-blush">
     {menuOpen && <button type="button" aria-label="Close admin menu" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-deep-berry/50 backdrop-blur-sm lg:hidden"/>}
-    <aside className={`fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col overflow-y-auto bg-gradient-to-b from-deep-berry to-[#35192a] px-4 pb-4 pt-7 text-charcoal shadow-2xl transition-transform duration-300 lg:translate-x-0 ${menuOpen ? "translate-x-0" : "-translate-x-full"}`}>
-      <div className="flex items-start justify-between px-2"><div><p className="font-display text-4xl font-semibold leading-none tracking-[0.14em]">{businessProfile.logo}</p><p className="mt-2 text-[9px] font-medium tracking-[0.4em] text-rose-gold">BEAUTY STUDIO</p></div><button type="button" aria-label="Close admin menu" onClick={() => setMenuOpen(false)} className="grid size-10 place-items-center rounded-full text-charcoal/80 hover:bg-white/10 lg:hidden"><FiX aria-hidden="true" size={20}/></button></div>
+    <aside className={`fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col overflow-y-auto bg-gradient-to-b from-deep-berry to-[#35192a] px-4 pb-4 pt-7 text-charcoal shadow-2xl transition-[transform,width] duration-300 ${sidebarExpanded ? "lg:w-[272px]" : "lg:w-[84px]"} ${menuOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
+      <div className={`flex items-start px-2 ${sidebarExpanded ? "justify-between" : "justify-center"}`}>
+        <div className={sidebarExpanded ? "" : "lg:hidden"}><p className="font-display text-4xl font-semibold leading-none tracking-[0.14em]">{businessProfile.logo}</p><p className="mt-2 text-[9px] font-medium tracking-[0.4em] text-rose-gold">BEAUTY STUDIO</p></div>
+        {!sidebarExpanded && <span className="hidden font-display text-3xl font-semibold text-rose-gold lg:block">SB</span>}
+        <button type="button" aria-label={sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={sidebarExpanded} onClick={toggleSidebar} className="hidden size-9 shrink-0 place-items-center rounded-full text-charcoal/80 transition-colors hover:bg-white/10 lg:grid">{sidebarExpanded ? <FiChevronLeft aria-hidden="true" size={18}/> : <FiChevronRight aria-hidden="true" size={18}/>}</button>
+        <button type="button" aria-label="Close admin menu" onClick={() => setMenuOpen(false)} className="grid size-10 place-items-center rounded-full text-charcoal/80 hover:bg-white/10 lg:hidden"><FiX aria-hidden="true" size={20}/></button>
+      </div>
       <div aria-hidden="true" className="gold-rule my-6 opacity-60"/>
-      <nav aria-label="Admin sections" className="space-y-1">{navGroups.map((group, index) => <div key={index} className="space-y-1">{group.label && <p className="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-[0.22em] text-rose-gold/80">{group.label}</p>}{group.items.map(({ id, label, Icon, badge }) => <button key={id} type="button" onClick={() => go(id)} aria-current={section === id ? "page" : undefined} className={`relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm transition-colors ${section === id ? "bg-white/10 font-semibold text-white" : "text-charcoal/75 hover:bg-white/5 hover:text-white"}`}>{section === id && <span aria-hidden="true" className="absolute -left-4 h-6 w-1 rounded-r-full bg-rose-gold"/>}<Icon aria-hidden="true" size={17}/><span className="flex-1 text-left">{label}</span>{badge ? <span className="rounded-full bg-rose-gold px-2 py-0.5 text-[10px] font-bold text-deep-berry">{badge}</span> : null}</button>)}</div>)}</nav>
-      <div className="mt-auto pt-8"><div className="rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-charcoal/70">Signed in as</p><p className="mb-3 text-sm font-semibold">Studio admin</p><button type="button" onClick={() => void logout()} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-white/10 text-xs font-semibold transition-colors hover:bg-white/20"><FiLogOut aria-hidden="true" size={15}/>Sign out</button></div></div>
+      <nav aria-label="Admin sections" className="space-y-1">{navGroups.map((group, index) => <div key={index} className="space-y-1">{group.label && <p className={`px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-[0.22em] text-rose-gold/80 ${sidebarExpanded ? "" : "lg:hidden"}`}>{group.label}</p>}{group.items.map(({ id, label, Icon, badge }) => <button key={id} type="button" onClick={() => go(id)} aria-label={label} title={!sidebarExpanded ? label : undefined} aria-current={section === id ? "page" : undefined} className={`relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm transition-colors ${sidebarExpanded ? "" : "lg:justify-center lg:px-0"} ${section === id ? "bg-white/10 font-semibold text-white" : "text-charcoal/75 hover:bg-white/5 hover:text-white"}`}>{section === id && <span aria-hidden="true" className="absolute -left-4 h-6 w-1 rounded-r-full bg-rose-gold"/>}<Icon aria-hidden="true" size={17}/><span className={`flex-1 text-left ${sidebarExpanded ? "" : "lg:hidden"}`}>{label}</span>{badge ? <span className={`rounded-full bg-rose-gold px-2 py-0.5 text-[10px] font-bold text-deep-berry ${sidebarExpanded ? "" : "lg:hidden"}`}>{badge}</span> : null}</button>)}</div>)}</nav>
+      <div className="mt-auto pt-8"><div className={`rounded-2xl border border-white/10 bg-white/5 p-4 ${sidebarExpanded ? "" : "lg:border-transparent lg:bg-transparent lg:px-0"}`}>
+        <p className={`text-xs text-charcoal/70 ${sidebarExpanded ? "" : "lg:hidden"}`}>Signed in as</p><p className={`mb-3 text-sm font-semibold ${sidebarExpanded ? "" : "lg:hidden"}`}>Studio admin</p>
+        <button type="button" onClick={() => void logout()} aria-label="Sign out" title={!sidebarExpanded ? "Sign out" : undefined} className={`flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-white/10 text-xs font-semibold transition-colors hover:bg-white/20 ${sidebarExpanded ? "" : "lg:px-0"}`}><FiLogOut aria-hidden="true" size={15}/><span className={sidebarExpanded ? "" : "lg:hidden"}>Sign out</span></button>
+      </div></div>
     </aside>
 
-    <div className="lg:pl-[272px]">
+    <div className={sidebarExpanded ? "lg:pl-[272px]" : "lg:pl-[84px]"}>
       <header className="sticky top-0 z-30 flex min-h-[72px] items-center gap-2 border-b border-soft-border/70 bg-brand-white/85 px-3 shadow-sm backdrop-blur-xl sm:gap-3 sm:px-5 md:min-h-[76px] md:px-10">
         <button type="button" aria-label="Open admin menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)} className="grid size-10 shrink-0 place-items-center rounded-full border border-soft-border bg-surface text-deep-berry lg:hidden"><FiMenu aria-hidden="true" size={19}/></button>
         <div className="min-w-0 flex-1"><p className="truncate font-display text-xl font-semibold leading-tight text-deep-berry sm:text-2xl md:text-3xl">{greeting}, {firstName}</p><p className="truncate text-[11px] text-dark-text/70 sm:text-xs">{today || businessProfile.timezone}</p></div>

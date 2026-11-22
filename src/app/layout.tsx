@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { businessProfile } from "@/lib/brand";
 import ToastViewport from "@/components/ToastViewport";
+import WhatsAppFloatingButton from "@/components/site/WhatsAppFloatingButton";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -57,6 +58,7 @@ export default function RootLayout({
         <Navbar />
         <main className="flex-1">{children}</main>
         <Footer />
+        <WhatsAppFloatingButton />
       </body>
     </html>
   );
