@@ -21,12 +21,12 @@ export default function Footer() {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
 
   return (
-    <footer className="bg-deep-berry px-6 pb-8 pt-16 text-charcoal md:px-16">
+    <footer className="bg-deep-berry px-4 pb-7 pt-12 text-charcoal sm:px-6 sm:pt-16 md:px-16">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-12 md:grid-cols-[1.3fr_1fr_1.2fr]">
+        <div className="grid gap-9 sm:gap-12 md:grid-cols-[1.3fr_1fr_1.2fr]">
           <div>
             <Link href="/" aria-label={`${businessProfile.name} home`} className="inline-block rounded-xl bg-brand-white p-2.5">
-              <Image src="/images/sbosh-beauty-studio-logo.svg" alt={businessProfile.name} width={260} height={65} className="h-auto w-[230px]" />
+                <Image src="/images/sbosh-beauty-studio-logo.svg" alt={businessProfile.name} width={260} height={65} className="h-auto w-[205px] sm:w-[230px]" />
             </Link>
             <p className="mt-5 max-w-xs text-sm leading-7 text-charcoal/75">
               A little colour, a little care, and a moment that is yours.

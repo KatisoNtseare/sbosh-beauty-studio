@@ -157,8 +157,8 @@ export default function BookingForm() {
   const progressSteps = ["Choose services", "Choose a time", "Your details"];
 
   return <form onSubmit={submit} className="pb-16 pt-6">
-    <ol aria-label="Booking progress" className="mb-7 grid grid-cols-3 gap-2">
-      {progressSteps.map((step, index) => <li key={step} aria-current={currentStep === index + 1 ? "step" : undefined} className={cn("flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold sm:gap-3 sm:px-4", currentStep === index + 1 ? "border-brand-pink bg-strong-pink text-charcoal" : index + 1 < currentStep ? "border-brand-pink/20 bg-pale-blush text-deep-berry" : "border-soft-border bg-surface text-dark-text/70")}><span className={cn("grid size-7 shrink-0 place-items-center rounded-full", currentStep === index + 1 ? "bg-surface/20" : index + 1 < currentStep ? "bg-strong-pink text-charcoal" : "bg-soft-pink text-deep-berry")}>{index + 1}</span><span className="leading-4">{step}</span></li>)}
+    <ol aria-label="Booking progress" className="mb-5 grid grid-cols-3 gap-1.5 sm:mb-7 sm:gap-2">
+      {progressSteps.map((step, index) => <li key={step} aria-current={currentStep === index + 1 ? "step" : undefined} className={cn("flex min-h-12 min-w-0 items-center gap-1.5 rounded-xl border px-2 py-2 text-[10px] font-semibold leading-tight sm:min-h-14 sm:gap-3 sm:px-4 sm:text-xs", currentStep === index + 1 ? "border-brand-pink bg-strong-pink text-charcoal" : index + 1 < currentStep ? "border-brand-pink/20 bg-pale-blush text-deep-berry" : "border-soft-border bg-surface text-dark-text/70")}><span className={cn("grid size-6 shrink-0 place-items-center rounded-full sm:size-7", currentStep === index + 1 ? "bg-surface/20" : index + 1 < currentStep ? "bg-strong-pink text-charcoal" : "bg-soft-pink text-deep-berry")}>{index + 1}</span><span className="min-w-0 sm:hidden">{["Services", "Time", "Details"][index]}</span><span className="hidden min-w-0 sm:inline">{step}</span></li>)}
     </ol>
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:gap-8">
     <div className="flex min-w-0 flex-col gap-5">

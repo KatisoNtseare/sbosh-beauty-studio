@@ -22,15 +22,15 @@ export default function Navbar() {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-soft-border/70 bg-brand-white/80 px-5 backdrop-blur-xl md:px-16">
-      <div className="mx-auto flex min-h-[82px] max-w-7xl items-center justify-between gap-5">
+    <header className="sticky top-0 z-50 border-b border-soft-border/70 bg-brand-white/90 px-3 backdrop-blur-xl sm:px-5 md:px-16">
+      <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-2 md:min-h-[82px] md:gap-5">
         <Link
           href="/"
           onClick={() => setMenuOpen(false)}
           aria-label={`${businessProfile.name} home`}
           className="shrink-0"
         >
-          <Image src="/images/sbosh-beauty-studio-logo.svg" alt={businessProfile.name} width={220} height={56} priority className="h-auto w-[170px] sm:w-[195px]" />
+          <Image src="/images/sbosh-beauty-studio-logo.svg" alt={businessProfile.name} width={220} height={56} priority className="h-auto w-[138px] sm:w-[195px]" />
         </Link>
 
         <nav aria-label="Main" className="hidden items-center gap-10 lg:flex">
@@ -53,9 +53,9 @@ export default function Navbar() {
           })}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-3">
-          <Link href="/services" className={cn(buttonStyles(), "min-h-11 px-5 text-[11px]")}>
-            Book appointment
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <Link href="/services" className={cn(buttonStyles(), "min-h-10 px-3 text-[10px] sm:min-h-11 sm:px-5 sm:text-[11px]")}>
+            <span className="sm:hidden">Book</span><span className="hidden sm:inline">Book appointment</span>
           </Link>
           <button
             type="button"
@@ -63,7 +63,7 @@ export default function Navbar() {
             aria-expanded={menuOpen}
             aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
             onClick={() => setMenuOpen((open) => !open)}
-            className="flex size-11 flex-col items-center justify-center gap-[5px] rounded-full border border-soft-border text-deep-berry lg:hidden"
+            className="flex size-10 shrink-0 flex-col items-center justify-center gap-[5px] rounded-full border border-soft-border text-deep-berry lg:hidden"
           >
             <span className={cn("h-px w-4 bg-current transition-transform", menuOpen && "translate-y-[3px] rotate-45")} />
             <span className={cn("h-px w-4 bg-current transition-transform", menuOpen && "-translate-y-[3px] -rotate-45")} />
@@ -72,7 +72,7 @@ export default function Navbar() {
       </div>
 
       {menuOpen && (
-        <nav id="mobile-navigation" aria-label="Mobile" className="border-t border-soft-border py-3 lg:hidden">
+        <nav id="mobile-navigation" aria-label="Mobile" className="border-t border-soft-border py-2 lg:hidden">
           {links.map((link) => (
             <Link
               key={link.href}
@@ -80,7 +80,7 @@ export default function Navbar() {
               onClick={() => setMenuOpen(false)}
               aria-current={link.href === pathname ? "page" : undefined}
               className={cn(
-                "block border-b border-soft-border/70 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-dark-text/80 last:border-0",
+                "block min-h-12 border-b border-soft-border/70 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-dark-text/80 last:border-0",
                 link.href === pathname && "border-l-2 border-l-brand-pink pl-3 text-deep-berry"
               )}
             >
