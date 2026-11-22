@@ -7,6 +7,7 @@ import StudioGallery from "@/components/gallery/StudioGallery";
 import Link from "next/link";
 import { StudioDirectionsLink } from "@/components/site/SiteContact";
 import { businessProfile } from "@/lib/brand";
+import { studioShareImage } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Nail & Lash Studio in Bram Fischerville",
@@ -15,7 +16,13 @@ export const metadata: Metadata = {
     title: `Nail & Lash Studio in Bram Fischerville - ${businessProfile.name}`,
     description: "Nail and lash appointments in Bram Fischerville, Roodepoort. Explore manicures, gel nails, overlays, nail repair, and buff & shine.",
     url: "/",
-    images: [{ url: "/images/hero_image.jpg", alt: "Nail and lash studio in Bram Fischerville" }],
+    images: [studioShareImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `Nail & Lash Studio in Bram Fischerville - ${businessProfile.name}`,
+    description: "Nail and lash appointments in Bram Fischerville, Roodepoort.",
+    images: [studioShareImage.url],
   },
 };
 

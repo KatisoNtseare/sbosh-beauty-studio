@@ -7,6 +7,7 @@ import { businessProfile } from "@/lib/brand";
 import ToastViewport from "@/components/ToastViewport";
 import WhatsAppFloatingButton from "@/components/site/WhatsAppFloatingButton";
 import BusinessStructuredData from "@/components/site/BusinessStructuredData";
+import { studioShareImage } from "@/lib/seo";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -42,9 +43,9 @@ export const metadata: Metadata = {
     siteName: businessProfile.name,
     title: businessProfile.name,
     description: `Manicure, gel nails, overlays, nail repair and buff & shine in Bram Fischerville, Roodepoort.`,
-    images: [{ url: "/images/sbosh-beauty-studio-logo.svg", width: 512, height: 512, alt: businessProfile.name }],
+    images: [studioShareImage],
   },
-  twitter: { card: "summary", title: businessProfile.name, description: `Nail care in Bram Fischerville, Roodepoort.`, images: ["/images/sbosh-beauty-studio-logo.svg"] },
+  twitter: { card: "summary_large_image", title: businessProfile.name, description: `Nail care in Bram Fischerville, Roodepoort.`, images: [studioShareImage.url] },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },
 };
 
