@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 import { cn } from "@/lib/utils";
 import { buttonStyles } from "@/lib/button";
-import { businessProfile } from "@/lib/brand";
+import { businessProfile, defaultCatalogueImage } from "@/lib/brand";
 import { todayInSalon } from "@/lib/timezone";
 import { addCartEntry, getCartSnapshot, getServerCartSnapshot, saveCart, subscribeCart, type CartEntry } from "@/lib/cart";
 
@@ -20,8 +20,9 @@ const lineKey = (line: CartEntry) => `${line.kind}:${line.id}`;
 const methodLabel = (extra: Extra) => extra.method === "PER_NAIL" ? "per nail" : "per design";
 
 function BookingImage({ item }: { item: CatalogueItem }) {
-  const [src, setSrc] = useState(item.image || "/images/hero.jpg");
-  return <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-soft-pink"><Image src={src} alt={item.name} fill sizes="(max-width: 640px) 100vw, 190px" className="object-cover" onError={() => setSrc("/images/hero.jpg")}/></div>;
+  const [src, setSrc] = useState(item.image || defaultCatalogueImage);
+  const isFallback = src === defaultCatalogueImage;
+  return <div className={`relative aspect-[4/3] overflow-hidden rounded-2xl ${isFallback ? "bg-brand-white" : "bg-soft-pink"}`}><Image src={src} alt={item.name} fill sizes="(max-width: 640px) 100vw, 190px" className={isFallback ? "object-contain p-7" : "object-cover"} onError={() => setSrc(defaultCatalogueImage)}/></div>;
 }
 
 export default function BookingForm() {

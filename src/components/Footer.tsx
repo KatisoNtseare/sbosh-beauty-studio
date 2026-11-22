@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
-import { studioContact } from "@/lib/data";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { businessProfile } from "@/lib/brand";
+import { useSiteContact } from "@/components/site/SiteContact";
 
 const footerLinks = [
   { label: "Services", href: "/services" },
@@ -10,15 +14,20 @@ const footerLinks = [
 ];
 
 export default function Footer() {
+  const pathname = usePathname();
+  const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
+  const studioContact = useSiteContact(!isAdmin);
+
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
+
   return (
     <footer className="bg-deep-berry px-6 pb-8 pt-16 text-charcoal md:px-16">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-12 md:grid-cols-[1.3fr_1fr_1.2fr]">
           <div>
-            <Link href="/" className="font-display text-4xl font-semibold tracking-[0.14em]">
-              {businessProfile.logo}
+            <Link href="/" aria-label={`${businessProfile.name} home`} className="inline-block rounded-xl bg-brand-white p-2.5">
+              <Image src="/images/sbosh-beauty-studio-logo.svg" alt={businessProfile.name} width={260} height={65} className="h-auto w-[230px]" />
             </Link>
-            <p className="mt-1 text-[9px] font-medium tracking-[0.4em] text-rose-gold">BEAUTY STUDIO</p>
             <p className="mt-5 max-w-xs text-sm leading-7 text-charcoal/75">
               A little colour, a little care, and a moment that is yours.
             </p>
@@ -38,6 +47,8 @@ export default function Footer() {
             <a href={studioContact.phoneHref} className="w-fit text-charcoal/80 transition-colors hover:text-rose-gold">
               {studioContact.phone}
             </a>
+            <a href={studioContact.whatsappHref} target="_blank" rel="noreferrer" className="w-fit text-charcoal/80 transition-colors hover:text-rose-gold">WhatsApp</a>
+            <a href={studioContact.emailHref} className="w-fit text-charcoal/80 transition-colors hover:text-rose-gold">{studioContact.email}</a>
             <a
               href={studioContact.mapHref}
               target="_blank"

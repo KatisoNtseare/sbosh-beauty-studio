@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Sbosh’s Beauty Studio</title>
+  <desc id="desc">An elegant plum and rose gold SB monogram beside the Sbosh’s Beauty Studio wordmark.</desc>
+  <circle cx="80" cy="80" r="66" stroke="#A24D69" stroke-width="2"/>
+  <circle cx="80" cy="80" r="57" stroke="#E3B5A0" stroke-width="1"/>
+  <path d="M48 59c0-12 10-20 25-20 10 0 18 3 24 9l-8 10c-5-4-10-6-16-6-7 0-11 3-11 7 0 5 5 7 16 10 15 4 23 10 23 22 0 14-11 23-29 23-12 0-23-4-31-12l8-10c7 6 14 9 22 9 8 0 13-3 13-8 0-4-4-7-15-10-16-4-26-10-26-24Z" fill="#4A2438"/>
+  <path d="M101 41h22c16 0 25 7 25 19 0 8-4 13-11 16 9 3 14 9 14 19 0 14-11 23-29 23h-21V41Zm15 12v18h7c7 0 11-3 11-9 0-6-4-9-11-9h-7Zm0 30v22h8c8 0 12-4 12-11 0-7-4-11-12-11h-8Z" fill="#A24D69" transform="translate(-18 0)"/>
+  <path d="M137 21v12m-6-6h12" stroke="#E3B5A0" stroke-width="2" stroke-linecap="round"/>
+  <path d="M29 114v8m-4-4h8" stroke="#E3B5A0" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="172" y="78" fill="#4A2438" font-family="Georgia, 'Times New Roman', serif" font-size="54" letter-spacing="-1.5">Sbosh’s</text>
+  <path d="M174 96h63" stroke="#E3B5A0" stroke-width="2"/>
+  <text x="247" y="102" fill="#A24D69" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" letter-spacing="5.2">BEAUTY STUDIO</text>
+  <text x="174" y="128" fill="#6F5862" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="500" letter-spacing="2.6">NAIL CARE · YOUR MOMENT</text>
+</svg>

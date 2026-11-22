@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { FaWhatsapp } from "react-icons/fa";
-import { FiCalendar, FiClock, FiGrid, FiInbox, FiList, FiPackage, FiPlusCircle } from "react-icons/fi";
+import { FiCalendar, FiChevronLeft, FiChevronRight, FiClock, FiGrid, FiImage, FiInbox, FiList, FiMenu, FiPackage, FiPlusCircle, FiSettings, FiTrash2, FiUpload, FiX } from "react-icons/fi";
 import type { IconType } from "react-icons";
-import { businessProfile } from "@/lib/brand";
+import { businessProfile, defaultCatalogueImage } from "@/lib/brand";
 import { calculateBookingStats } from "@/lib/admin-stats";
 
 type Booking = {
@@ -27,13 +28,13 @@ type AdminPackage = { _id: string; name: string; description: string; serviceIds
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const input = "min-h-11 w-full rounded-xl border border-pale-blush bg-surface px-3 text-sm text-dark-text focus:border-brand-pink focus:outline-none focus:ring-2 focus:ring-brand-pink/15 disabled:opacity-50";
-type Section = "overview" | "bookings" | "calendar" | "services-list" | "services-add" | "packages" | "availability";
+type Section = "overview" | "bookings" | "calendar" | "services-list" | "services-add" | "packages" | "availability" | "gallery" | "site-settings";
 const card = "rounded-3xl border border-soft-border bg-surface p-5 shadow-sm md:p-7";
 const primaryBtn = "min-h-11 rounded-xl bg-strong-pink px-5 text-sm font-semibold text-charcoal transition-colors hover:bg-deep-berry disabled:opacity-50";
 const secondaryBtn = "min-h-11 rounded-xl border border-soft-border bg-surface px-4 text-sm font-medium text-deep-berry transition-colors hover:bg-pale-blush";
 const blankPeriod = (): Period => ({ open: "09:00", close: "17:30" });
 const blankWeekly = (): Day[] => dayNames.map((_, weekday) => ({ weekday, enabled: true, periods: [blankPeriod()] }));
-const blankService = (): Omit<AdminService, "_id"> => ({ name: "", description: "", fullDescription: "", image: "/images/hero.jpg", imagePublicId: "", priceLabel: "", category: "Acrylic Nail Sets", classification: "NAILS", priceConfirmed: false, extras: [], displayOrder: 0, active: true });
+const blankService = (): Omit<AdminService, "_id"> => ({ name: "", description: "", fullDescription: "", image: defaultCatalogueImage, imagePublicId: "", priceLabel: "", category: "Acrylic Nail Sets", classification: "NAILS", priceConfirmed: false, extras: [], displayOrder: 0, active: true });
 
 async function responseData(response: Response) {
   const body = await response.json().catch(() => ({}));
@@ -49,6 +50,8 @@ export default function AdminPanel() {
   const [status, setStatus] = useState("ALL"); const [query, setQuery] = useState(""); const [dateFilter, setDateFilter] = useState(""); const [serviceFilter, setServiceFilter] = useState("ALL");
   const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0); const [serviceNames, setServiceNames] = useState<string[]>([]); const [refreshVersion, setRefreshVersion] = useState(0);
   const [section, setSection] = useState<Section>("overview"); const [calendarDate, setCalendarDate] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const notifySuccess = useCallback((message: string) => { setNotice(message); toast.success(message); }, []);
   const notifyError = useCallback((message: string) => { setError(message); toast.error(message); }, []);
 
@@ -79,13 +82,16 @@ export default function AdminPanel() {
   async function logout() { await fetch("/api/admin/logout", { method: "POST" }); setAuthenticated(false); }
   const filtered = bookings;
 
-  if (!authenticated) return <form onSubmit={login} className="mx-auto max-w-md rounded-3xl border border-pale-blush bg-surface p-7 shadow-xl shadow-deep-berry/5 sm:p-9">
-    <p className="mb-2 text-xs font-semibold text-deep-berry">{businessProfile.name}</p><h1 className="mb-6 font-display text-5xl font-semibold text-deep-berry">Admin sign in</h1>
-    <label className="mb-4 block text-sm">Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className={`${input} mt-2`}/></label>
-    <label className="mb-5 block text-sm">Password<input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className={`${input} mt-2`}/></label>
-    <button className="min-h-12 w-full rounded-xl bg-strong-pink px-5 py-3 text-sm font-semibold text-charcoal transition-colors hover:bg-raised-surface hover:text-silver">Sign in</button>
-    {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
-  </form>;
+  if (!authenticated) return <div className="space-y-10">
+    <AdminHeader authenticated={false}/>
+    <form onSubmit={login} className="mx-auto max-w-md rounded-3xl border border-pale-blush bg-surface p-7 shadow-xl shadow-deep-berry/5 sm:p-9">
+      <p className="mb-2 text-xs font-semibold text-deep-berry">{businessProfile.name}</p><h1 className="mb-6 font-display text-5xl font-semibold text-deep-berry">Admin sign in</h1>
+      <label className="mb-4 block text-sm">Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className={`${input} mt-2`}/></label>
+      <label className="mb-5 block text-sm">Password<input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className={`${input} mt-2`}/></label>
+      <button className="min-h-12 w-full rounded-xl bg-strong-pink px-5 py-3 text-sm font-semibold text-charcoal transition-colors hover:bg-raised-surface hover:text-silver">Sign in</button>
+      {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
+    </form>
+  </div>;
 
   const stats = calculateBookingStats(counts);
   const go = (id: Section) => { setSection(id); setError(""); setNotice(""); };
@@ -95,33 +101,37 @@ export default function AdminPanel() {
     { items: [{ id: "overview", label: "Overview", Icon: FiGrid }] },
     { label: "Bookings", items: [{ id: "bookings", label: "Booking requests", Icon: FiInbox, badge: stats.pending }, { id: "calendar", label: "Calendar", Icon: FiCalendar }] },
     { label: "Services", items: [{ id: "services-list", label: "All services", Icon: FiList }, { id: "services-add", label: "Add service", Icon: FiPlusCircle }, { id: "packages", label: "Packages", Icon: FiPackage }] },
-    { label: "Studio", items: [{ id: "availability", label: "Opening hours", Icon: FiClock }] },
+    { label: "Studio", items: [{ id: "availability", label: "Opening hours", Icon: FiClock }, { id: "gallery", label: "Gallery photos", Icon: FiImage }, { id: "site-settings", label: "Site settings", Icon: FiSettings }] },
   ];
-  const titles: Record<Section, string> = { overview: "Overview", bookings: "Booking requests", calendar: "Calendar", "services-list": "All services", "services-add": "Add a service", packages: "Packages", availability: "Opening hours" };
+  const titles: Record<Section, string> = { overview: "Overview", bookings: "Booking requests", calendar: "Calendar", "services-list": "All services", "services-add": "Add a service", packages: "Packages", availability: "Opening hours", gallery: "Gallery photos", "site-settings": "Site settings" };
   const quick: { title: string; text: string; Icon: IconType; onClick: () => void }[] = [
     { title: "Review requests", text: stats.pending ? `${stats.pending} waiting for your answer` : "Nothing waiting right now", Icon: FiInbox, onClick: () => goBookings("PENDING") },
     { title: "Add a service", text: "Create a new service customers can book", Icon: FiPlusCircle, onClick: () => go("services-add") },
     { title: "Today’s calendar", text: "See who is coming in", Icon: FiCalendar, onClick: () => go("calendar") },
   ];
 
-  return <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10">
-    <aside className="lg:sticky lg:top-28 lg:self-start">
-      <div className="rounded-3xl border border-soft-border bg-surface p-3 shadow-luxe lg:p-4">
-        <div className="hidden px-3 pb-3 pt-2 lg:block"><p className="font-display text-3xl font-semibold tracking-[0.1em] text-deep-berry">{businessProfile.logo}</p><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-pink">Studio admin</p></div>
-        <nav aria-label="Admin sections" className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
-          {navGroups.map((group, index) => <div key={index} className="flex gap-1 lg:flex-col">
-            {group.label && <p className="hidden px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-dark-text/60 lg:block">{group.label}</p>}
-            {group.items.map(({ id, label, Icon, badge }) => <button key={id} type="button" onClick={() => go(id)} aria-current={section === id ? "page" : undefined} className={`flex min-h-11 shrink-0 items-center gap-3 rounded-xl px-3 text-sm transition-colors ${section === id ? "bg-strong-pink font-semibold text-charcoal" : "text-dark-text/80 hover:bg-pale-blush"}`}>
-              <Icon aria-hidden="true" size={17}/><span className="flex-1 whitespace-nowrap text-left">{label}</span>
-              {badge ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${section === id ? "bg-charcoal text-deep-berry" : "bg-brand-pink text-charcoal"}`}>{badge}</span> : null}
-            </button>)}
-          </div>)}
-        </nav>
-      </div>
-    </aside>
+  return <div className="space-y-6">
+    <AdminHeader authenticated collapsed={sidebarCollapsed} mobileOpen={mobileNavOpen} onToggleSidebar={() => setSidebarCollapsed((value) => !value)} onToggleMobile={() => setMobileNavOpen((value) => !value)} onLogout={() => void logout()}/>
+    <div className={`grid gap-6 lg:gap-8 ${sidebarCollapsed ? "lg:grid-cols-[84px_minmax(0,1fr)]" : "lg:grid-cols-[260px_minmax(0,1fr)]"}`}>
+      {mobileNavOpen && <button type="button" aria-label="Close admin navigation" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-deep-berry/45 backdrop-blur-sm lg:hidden"/>}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 p-3 transition-transform lg:sticky lg:top-24 lg:z-0 lg:h-[calc(100dvh-7rem)] lg:w-auto lg:translate-x-0 lg:p-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="h-full overflow-y-auto rounded-3xl border border-soft-border bg-surface p-3 shadow-luxe lg:p-4">
+          <div className={`hidden px-3 pb-3 pt-2 lg:block ${sidebarCollapsed ? "lg:hidden" : ""}`}><p className="font-display text-3xl font-semibold tracking-[0.1em] text-deep-berry">{businessProfile.logo}</p><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-pink">Studio admin</p></div>
+          <div className="mb-2 flex items-center justify-between px-2 pt-2 lg:hidden"><span className="text-xs font-semibold uppercase tracking-[0.16em] text-deep-berry">Admin menu</span><button type="button" aria-label="Close admin navigation" onClick={() => setMobileNavOpen(false)} className="grid size-9 place-items-center rounded-full border border-soft-border text-deep-berry"><FiX aria-hidden="true"/></button></div>
+          <nav aria-label="Admin sections" className="flex flex-col gap-1">
+            {navGroups.map((group, index) => <div key={index} className="flex flex-col">
+              {group.label && <p className={`hidden px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-dark-text/60 lg:block ${sidebarCollapsed ? "lg:hidden" : ""}`}>{group.label}</p>}
+              {group.items.map(({ id, label, Icon, badge }) => <button key={id} type="button" onClick={() => { go(id); setMobileNavOpen(false); }} aria-label={label} title={sidebarCollapsed ? label : undefined} aria-current={section === id ? "page" : undefined} className={`flex min-h-11 w-full shrink-0 items-center gap-3 rounded-xl px-3 text-sm transition-colors ${sidebarCollapsed ? "lg:justify-center lg:px-2" : ""} ${section === id ? "bg-strong-pink font-semibold text-charcoal" : "text-dark-text/80 hover:bg-pale-blush"}`}>
+                <Icon aria-hidden="true" size={17}/><span className={`flex-1 whitespace-nowrap text-left ${sidebarCollapsed ? "lg:hidden" : ""}`}>{label}</span>
+                {badge ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${sidebarCollapsed ? "lg:hidden" : ""} ${section === id ? "bg-charcoal text-deep-berry" : "bg-brand-pink text-charcoal"}`}>{badge}</span> : null}
+              </button>)}
+            </div>)}
+          </nav>
+        </div>
+      </aside>
 
-    <div className="min-w-0">
-      <header className="mb-7"><p className="eyebrow text-brand-pink">{businessProfile.name}</p><div className="mt-3 flex flex-wrap items-end justify-between gap-4"><h1 className="font-display text-5xl font-semibold text-deep-berry">{titles[section]}</h1><button onClick={() => void logout()} className={secondaryBtn}>Sign out</button></div></header>
+      <div className="min-w-0">
+      <header className="mb-7"><p className="eyebrow text-brand-pink">{businessProfile.name}</p><h1 className="mt-3 font-display text-5xl font-semibold text-deep-berry">{titles[section]}</h1></header>
       {error && <p role="alert" className="mb-4 rounded-xl border border-error/30 bg-surface p-3 text-sm">{error}</p>}{notice && <p role="status" className="mb-4 rounded-xl border border-brand-pink/25 bg-soft-pink p-3 text-sm text-deep-berry">{notice}</p>}
 
       {section === "overview" && <div className="space-y-8">
@@ -144,9 +154,122 @@ export default function AdminPanel() {
       </>}
 
       {section === "calendar" && <BookingCalendar date={calendarDate} onDate={setCalendarDate}/>}
+      {section === "gallery" && <GalleryManager onMessage={notifySuccess} onError={notifyError}/>}
+      {section === "site-settings" && <SiteSettingsEditor onMessage={notifySuccess} onError={notifyError}/>}
       {(section === "availability" || section === "services-list" || section === "services-add" || section === "packages") && <AvailabilityAndServices view={section} onNavigate={go} onMessage={notifySuccess} onError={notifyError}/>}
+      </div>
     </div>
   </div>;
+}
+
+function AdminHeader({ authenticated, collapsed, mobileOpen, onToggleSidebar, onToggleMobile, onLogout }: { authenticated: boolean; collapsed?: boolean; mobileOpen?: boolean; onToggleSidebar?: () => void; onToggleMobile?: () => void; onLogout?: () => void }) {
+  return <header className="sticky top-0 z-40 -mx-4 border-b border-soft-border/70 bg-brand-white/95 px-4 shadow-sm backdrop-blur-xl sm:-mx-6 sm:px-6 md:-mx-12 md:px-12">
+    <div className="flex min-h-[76px] items-center gap-3">
+      {authenticated && <button type="button" aria-label={mobileOpen ? "Close admin menu" : "Open admin menu"} aria-expanded={mobileOpen} onClick={onToggleMobile} className="grid size-10 shrink-0 place-items-center rounded-full border border-soft-border text-deep-berry lg:hidden"><FiMenu aria-hidden="true"/></button>}
+      {authenticated && <button type="button" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} onClick={onToggleSidebar} className="hidden size-10 shrink-0 place-items-center rounded-full border border-soft-border text-deep-berry transition-colors hover:bg-pale-blush lg:grid">{collapsed ? <FiChevronRight aria-hidden="true"/> : <FiChevronLeft aria-hidden="true"/>}</button>}
+      <Link href="/" aria-label={`${businessProfile.name} home`} className="shrink-0 rounded-lg bg-brand-white">
+        <Image src="/images/sbosh-beauty-studio-logo.svg" alt={businessProfile.name} width={220} height={56} priority className="h-auto w-[150px] sm:w-[180px]"/>
+      </Link>
+      <div className="hidden border-l border-soft-border pl-4 sm:block"><p className="text-sm font-semibold text-deep-berry">Studio admin</p><p className="mt-0.5 text-[11px] text-dark-text/65">Manage your studio</p></div>
+      <div className="ml-auto flex items-center gap-2">
+        <Link href="/" className={`${secondaryBtn} inline-flex items-center justify-center px-3 text-xs sm:px-4`}>View site</Link>
+        {authenticated && <button type="button" onClick={onLogout} className={`${secondaryBtn} px-3 text-xs sm:px-4`}>Sign out</button>}
+      </div>
+    </div>
+  </header>;
+}
+
+type ManagedGalleryImage = { _id: string; name: string; image: string };
+
+function GalleryManager({ onMessage, onError }: { onMessage: (message: string) => void; onError: (message: string) => void }) {
+  const [images, setImages] = useState<ManagedGalleryImage[]>([]);
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/gallery").then(responseData).then((data) => setImages(data.images ?? []))
+      .catch((reason: Error) => onError(reason.message)).finally(() => setLoading(false));
+  }, [onError]);
+
+  async function addPhoto(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!file) { onError("Choose a photo to add to the gallery."); return; }
+    setUploading(true);
+    const form = new FormData();
+    form.set("file", file);
+    form.set("name", name);
+    try {
+      const data = await responseData(await fetch("/api/admin/gallery", { method: "POST", body: form }));
+      setImages((current) => [data.image, ...current]);
+      setName(""); setFile(null);
+      event.currentTarget.reset();
+      onMessage("Photo added to the gallery.");
+    } catch (reason) { onError(reason instanceof Error ? reason.message : "Photo could not be uploaded."); }
+    finally { setUploading(false); }
+  }
+
+  async function removePhoto(photo: ManagedGalleryImage) {
+    if (!window.confirm(`Remove “${photo.name}” from the gallery?`)) return;
+    try {
+      const data = await responseData(await fetch(`/api/admin/gallery/${photo._id}`, { method: "DELETE" }));
+      setImages((current) => current.filter((item) => item._id !== photo._id));
+      onMessage(data.storageWarning ? "Photo removed from the gallery. Its stored copy may need cleanup in Cloudinary." : "Photo removed from the gallery.");
+    } catch (reason) { onError(reason instanceof Error ? reason.message : "Photo could not be removed."); }
+  }
+
+  return <div className="space-y-6">
+    <section className={`${card} grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center`}>
+      <div><p className="eyebrow text-brand-pink">Studio moments</p><h2 className="mt-3 font-display text-4xl font-semibold text-deep-berry">Add photos to your gallery</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-dark-text/70">Upload finished nail sets or studio photos. They’ll appear in the public gallery and on the homepage. JPG, PNG, or WebP up to 5 MB.</p></div>
+      <form onSubmit={addPhoto} className="space-y-3 rounded-2xl border border-soft-border bg-brand-white p-4">
+        <label className="block text-xs font-medium">Photo caption <span className="font-normal text-dark-text/60">(optional)</span><input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="e.g. Soft pink gel set" className={`${input} mt-1`}/></label>
+        <label className={`${secondaryBtn} flex cursor-pointer items-center justify-center gap-2`}><FiImage aria-hidden="true"/>{file?.name ?? "Choose a photo"}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="sr-only"/></label>
+        <button type="submit" disabled={uploading || !file} className={`${primaryBtn} inline-flex w-full items-center justify-center gap-2`}><FiUpload aria-hidden="true"/>{uploading ? "Uploading…" : "Add to gallery"}</button>
+      </form>
+    </section>
+    <section aria-label="Gallery photos" className="space-y-3">
+      {loading ? <p aria-live="polite" className={`${card} text-sm text-dark-text/70`}>Loading gallery photos…</p>
+        : !images.length ? <div className={`${card} py-12 text-center`}><FiImage aria-hidden="true" className="mx-auto size-9 text-brand-pink"/><p className="mt-3 font-display text-2xl font-semibold text-deep-berry">Your gallery is ready for its first photo</p><p className="mt-1 text-sm text-dark-text/70">Choose a photo above to add it to the customer gallery.</p></div>
+          : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">{images.map((photo) => <article key={photo._id} className="overflow-hidden rounded-2xl border border-soft-border bg-surface shadow-sm"><div className="relative aspect-square bg-pale-blush"><Image src={photo.image} alt={photo.name} fill sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw" className="object-cover"/></div><div className="flex items-center justify-between gap-2 p-3"><p className="min-w-0 truncate text-xs font-semibold text-deep-berry">{photo.name}</p><button type="button" onClick={() => void removePhoto(photo)} aria-label={`Remove ${photo.name}`} className="grid size-9 shrink-0 place-items-center rounded-full border border-soft-border text-error transition-colors hover:bg-pale-blush"><FiTrash2 aria-hidden="true" size={15}/></button></div></article>)}</div>}
+    </section>
+  </div>;
+}
+
+type EditableSiteSettings = { phoneNumber: string; whatsappNumber: string; email: string };
+
+function SiteSettingsEditor({ onMessage, onError }: { onMessage: (message: string) => void; onError: (message: string) => void }) {
+  const [settings, setSettings] = useState<EditableSiteSettings>({ phoneNumber: "27813179144", whatsappNumber: "27813179144", email: "info@sboshsbeautystudio.co.za" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/site-settings").then(responseData).then((data) => setSettings(data.settings))
+      .catch((reason: Error) => onError(reason.message)).finally(() => setLoading(false));
+  }, [onError]);
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setSaving(true);
+    try {
+      const data = await responseData(await fetch("/api/admin/site-settings", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(settings) }));
+      setSettings(data.settings); onMessage("Site settings saved.");
+    } catch (reason) { onError(reason instanceof Error ? reason.message : "Site settings could not be saved."); }
+    finally { setSaving(false); }
+  }
+
+  return <form onSubmit={save} className={`${card} max-w-3xl`}>
+    <p className="eyebrow text-brand-pink">Contact details</p>
+    <h2 className="mt-3 font-display text-4xl font-semibold text-deep-berry">Site settings</h2>
+    <p className="mb-6 mt-2 text-sm leading-6 text-dark-text/70">These details appear on the website and in customer booking emails. Use international digits for phone numbers, for example 27813179144.</p>
+    {loading ? <p aria-live="polite" className="text-sm text-dark-text/70">Loading site settings…</p> : <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="text-sm">Phone number<input type="tel" inputMode="tel" required maxLength={24} value={settings.phoneNumber} onChange={(event) => setSettings({ ...settings, phoneNumber: event.target.value })} className={`${input} mt-1`}/></label>
+        <label className="text-sm">WhatsApp number<input type="tel" inputMode="tel" required maxLength={24} value={settings.whatsappNumber} onChange={(event) => setSettings({ ...settings, whatsappNumber: event.target.value })} className={`${input} mt-1`}/></label>
+        <label className="text-sm sm:col-span-2">Contact email<input type="email" required maxLength={254} value={settings.email} onChange={(event) => setSettings({ ...settings, email: event.target.value })} className={`${input} mt-1`}/></label>
+      </div>
+      <button type="submit" disabled={saving} className={`${primaryBtn} mt-6`}>{saving ? "Saving…" : "Save site settings"}</button>
+    </>}
+  </form>;
 }
 
 function BookingRow({ booking, onAction }: { booking: Booking; onAction: (payload: Record<string, unknown>) => void }) {
@@ -345,7 +468,7 @@ function ServiceEditor({ view, services, loaded, setServices, onNavigate, onMess
       <h2 className="eyebrow mb-3 text-brand-pink">{category}</h2>
       <div className="space-y-3">{shown.filter((item) => (item.category || "Other") === category).map((service) => <details key={service._id} className="group overflow-hidden rounded-2xl border border-soft-border bg-surface shadow-sm">
         <summary className="flex cursor-pointer items-center gap-4 p-3 transition-colors hover:bg-pale-blush">
-          <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-soft-pink"><Image src={service.image || "/images/hero.jpg"} alt="" fill sizes="64px" unoptimized className="object-cover"/></div>
+          <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-brand-white"><Image src={service.image || defaultCatalogueImage} alt="" fill sizes="64px" unoptimized className="object-contain p-1.5"/></div>
           <div className="min-w-0 flex-1"><p className="truncate font-semibold text-deep-berry">{service.name}</p><p className="text-xs text-dark-text/70">{priceText(service)}</p></div>
           <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${service.active ? "border-success/25 bg-success/10 text-success" : "border-soft-border bg-pale-blush text-dark-text/70"}`}>{service.active ? "Active" : "Archived"}</span>
           <span aria-hidden="true" className="px-2 text-xs font-semibold text-brand-pink group-open:hidden">Edit</span><span aria-hidden="true" className="hidden px-2 text-xs font-semibold text-brand-pink group-open:inline">Close</span>

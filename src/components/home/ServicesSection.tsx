@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { FiEye, FiShoppingBag } from "react-icons/fi";
 import { addCartEntry } from "@/lib/cart";
+import { defaultCatalogueImage } from "@/lib/brand";
 
 type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN" };
 type CatalogueItem = { _id: string; name: string; description: string; image: string; category: string; price?: number; priceConfirmed: boolean; isPackage?: boolean; serviceIds?: string[]; components?: { name: string }[]; extras?: Extra[] };
@@ -14,10 +15,11 @@ const categories = ["Acrylic Nail Sets", "Gel Nail Sets", "Pedicures", "Nail Car
 const formatPrice = (item: CatalogueItem) => item.priceConfirmed && typeof item.price === "number" ? `R${item.price}` : "Price to be confirmed";
 
 function ServiceImage({ item }: { item: CatalogueItem }) {
-  const [src, setSrc] = useState(item.image || "/images/hero.jpg");
-  return <div className="relative aspect-[4/3] overflow-hidden bg-soft-pink">
-    <Image src={src} alt={item.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.035]" onError={() => setSrc("/images/hero.jpg")} />
-    <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-charcoal/30 via-transparent to-soft-pink/10 opacity-70" />
+  const [src, setSrc] = useState(item.image || defaultCatalogueImage);
+  const isFallback = src === defaultCatalogueImage;
+  return <div className={`relative aspect-[4/3] overflow-hidden ${isFallback ? "bg-brand-white" : "bg-soft-pink"}`}>
+    <Image src={src} alt={item.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw" className={isFallback ? "object-contain p-8" : "object-cover transition-transform duration-500 group-hover:scale-[1.035]"} onError={() => setSrc(defaultCatalogueImage)} />
+    {!isFallback && <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-charcoal/30 via-transparent to-soft-pink/10 opacity-70" />}
     <span className="absolute bottom-3 left-3 rounded-full border border-silver/70 bg-surface/90 px-3 py-1 text-[10px] font-semibold text-deep-berry shadow-sm">{item.isPackage ? "Studio package" : "Nail care"}</span>
   </div>;
 }
@@ -52,7 +54,7 @@ function ProductDetails({ item, onClose, onBook }: { item: CatalogueItem; onClos
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", closeOnEscape); };
   }, [onClose]);
 
-  const image = item.image || "/images/hero.jpg";
+  const image = item.image || defaultCatalogueImage;
   function keepFocusInside(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Tab") return;
     const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])')];
@@ -69,8 +71,8 @@ function ProductDetails({ item, onClose, onBook }: { item: CatalogueItem; onClos
       <button type="button" autoFocus onClick={onClose} aria-label="Close product details" className="grid size-10 shrink-0 place-items-center rounded-full border border-pale-blush bg-surface text-2xl leading-none text-deep-berry transition-colors hover:bg-pale-blush">×</button>
     </div>
     <div className="grid min-h-[calc(100dvh-4rem)] lg:grid-cols-[1.1fr_0.9fr]">
-      <div className="relative min-h-[38vh] bg-soft-pink sm:min-h-[52vh] lg:min-h-full">
-        <Image src={image} alt={item.name} fill priority sizes="(max-width: 1024px) 100vw, 58vw" className="object-cover" />
+      <div className={`relative min-h-[38vh] sm:min-h-[52vh] lg:min-h-full ${image === defaultCatalogueImage ? "bg-brand-white" : "bg-soft-pink"}`}>
+        <Image src={image} alt={item.name} fill priority sizes="(max-width: 1024px) 100vw, 58vw" className={image === defaultCatalogueImage ? "object-contain p-12" : "object-cover"} />
       </div>
       <div className="flex flex-col px-5 py-7 sm:px-9 sm:py-10 lg:justify-center lg:px-12 xl:px-16">
         <p className="text-xs font-semibold text-deep-berry">{item.isPackage ? "A little something extra" : item.category || "Nail care"}</p>
@@ -126,10 +128,10 @@ export default function ServicesSection() {
   return <section id="services" className="scroll-mt-24 bg-pale-blush px-5 py-16 sm:px-6 md:px-12 md:py-24 xl:px-16">
     <div className="mx-auto max-w-7xl">
       <div className="mb-9 grid gap-5 md:grid-cols-[1fr_300px] md:items-end md:gap-10"><div><p className="mb-4 flex items-center gap-3 text-[11px] font-semibold text-deep-berry"><span className="h-px w-8 bg-soft-pink"/>Find your finish</p><h2 className="font-display text-5xl font-semibold leading-[0.95] tracking-tight text-deep-berry md:text-7xl">A little colour, <span className="italic text-deep-berry">a lot of you.</span></h2></div><p className="max-w-sm text-sm leading-6 text-dark-text/75">Explore the current services and pairings. Prices and availability come from the studio’s live catalogue.</p></div>
-      <nav aria-label="Service categories" className="sticky top-[4.25rem] z-20 -mx-5 mb-12 mt-2 flex snap-x snap-mandatory gap-3 overflow-x-auto border-y border-pale-blush bg-brand-white/95 px-5 py-5 backdrop-blur md:top-[5rem] md:mx-0 md:flex-wrap md:snap-none md:gap-x-4 md:gap-y-3 md:border-0 md:bg-transparent md:px-0 md:py-4">
+      {/* <nav aria-label="Service categories" className="sticky top-[4.25rem] z-20 -mx-5 mb-12 mt-2 flex snap-x snap-mandatory gap-3 overflow-x-auto border-y border-pale-blush bg-brand-white/95 px-5 py-5 backdrop-blur md:top-[5rem] md:mx-0 md:flex-wrap md:snap-none md:gap-x-4 md:gap-y-3 md:border-0 md:bg-transparent md:px-0 md:py-4">
         {sections.map((section) => <a key={section.title} href={`#${section.title.toLowerCase().replaceAll(" ", "-")}`} className="shrink-0 snap-start whitespace-nowrap rounded-full border border-pale-blush bg-surface px-5 py-3 text-[13px] font-medium text-deep-berry shadow-sm transition-colors hover:border-brand-pink hover:bg-pale-blush">{section.title}</a>)}
         {extras.length > 0 && <a href="#nail-art-extras" className="shrink-0 snap-start whitespace-nowrap rounded-full border border-pale-blush bg-surface px-5 py-3 text-[13px] font-medium text-deep-berry shadow-sm transition-colors hover:border-brand-pink hover:bg-pale-blush">Nail Art & Extras</a>}
-      </nav>
+      </nav> */}
       {error ? <p role="alert" className="border-y border-error/50 py-6 text-sm">{error}</p> : !loaded ? <p aria-live="polite" className="border-y border-soft-border py-6 text-sm text-dark-text/70">Loading the service menu…</p> : <>
         {sections.map((section) => <section id={section.title.toLowerCase().replaceAll(" ", "-")} key={section.title} className={`scroll-mt-36 border-t py-8 md:py-10 ${section.title === "Combination Packages" ? "border-brand-pink/35" : "border-pale-blush"}`}>
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3"><h3 className="font-display text-4xl font-semibold text-deep-berry md:text-5xl">{section.title}</h3><span className="rounded-full bg-surface px-3 py-1 text-xs text-deep-berry/75">{section.items.length} {section.items.length === 1 ? "service" : "services"}</span></div>

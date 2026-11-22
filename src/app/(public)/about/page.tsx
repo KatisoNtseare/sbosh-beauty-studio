@@ -4,7 +4,7 @@ import PageIntro from "@/components/layouts/PageIntro";
 import { businessProfile } from "@/lib/brand";
 import { buttonStyles } from "@/lib/button";
 import { cn } from "@/lib/utils";
-import { studioContact } from "@/lib/data";
+import { StudioContactActions, StudioDirectionsLink } from "@/components/site/SiteContact";
 
 export const metadata: Metadata = {
   title: "Our approach",
@@ -48,13 +48,11 @@ export default function AboutPage() {
         <div>
           <p className="mb-2 text-xs font-semibold text-pale-blush">Visit the studio</p>
           <h2 className="font-display text-3xl font-medium md:text-4xl">Come see us in Roodepoort.</h2>
-          <a href={studioContact.mapHref} target="_blank" rel="noreferrer" className="mt-3 block max-w-md text-sm leading-6 text-silver/85 underline decoration-soft-pink/60 underline-offset-4 hover:text-pale-blush">
-            {studioContact.address}
-          </a>
-          <a href={studioContact.phoneHref} className="mt-2 inline-block text-sm text-silver/85 hover:text-pale-blush">{studioContact.phone}</a>
+          <StudioDirectionsLink className="mt-3 block max-w-md text-sm leading-6 text-silver/85 underline decoration-soft-pink/60 underline-offset-4 hover:text-pale-blush">{businessProfile.contact.address}</StudioDirectionsLink>
+          <div className="mt-3"><StudioContactActions dark/></div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <a href={studioContact.phoneHref} className={cn(buttonStyles({ variant: "outline" }), "border-silver/70 text-silver hover:bg-surface/10")}>Call the studio</a>
+          <StudioContactActions dark showCallButton showDetails={false}/>
           <Link href="/services" className={cn(buttonStyles(), "bg-strong-pink text-charcoal hover:bg-raised-surface hover:text-silver")}>Book an appointment</Link>
         </div>
       </section>

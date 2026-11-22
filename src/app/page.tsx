@@ -4,7 +4,7 @@ import BookingCta from "@/components/home/BookingCta";
 import PriceList from "@/components/home/PriceList";
 import StudioGallery from "@/components/gallery/StudioGallery";
 import Link from "next/link";
-import { studioContact } from "@/lib/data";
+import { StudioDirectionsLink } from "@/components/site/SiteContact";
 
 export default function Home() {
   return (
@@ -22,14 +22,11 @@ export default function Home() {
               Nail care can be more than the finished look. Find us in Bram Fischerville, Roodepoort.
             </p>
           </div>
-          <Link
-            href={studioContact.mapHref}
-            target="_blank"
-            rel="noreferrer"
+          <StudioDirectionsLink
             className="inline-flex min-h-12 items-center justify-center rounded-full border-[1.5px] border-strong-pink/60 px-8 text-[12px] font-semibold uppercase tracking-[0.16em] text-deep-berry transition-colors hover:border-strong-pink hover:bg-pale-blush"
           >
             Get directions
-          </Link>
+          </StudioDirectionsLink>
         </div>
       </section>
       <PriceList />

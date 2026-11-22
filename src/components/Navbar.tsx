@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { buttonStyles } from "@/lib/button";
@@ -18,6 +19,8 @@ export default function Navbar() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
+
   return (
     <header className="sticky top-0 z-50 border-b border-soft-border/70 bg-brand-white/80 px-5 backdrop-blur-xl md:px-16">
       <div className="mx-auto flex min-h-[82px] max-w-7xl items-center justify-between gap-5">
@@ -25,12 +28,9 @@ export default function Navbar() {
           href="/"
           onClick={() => setMenuOpen(false)}
           aria-label={`${businessProfile.name} home`}
-          className="shrink-0 font-display text-[32px] font-semibold leading-[0.82] tracking-[0.14em] text-deep-berry"
+          className="shrink-0"
         >
-          {businessProfile.logo}
-          <span className="mt-2 block font-sans text-[8px] font-medium tracking-[0.4em] text-brand-pink">
-            BEAUTY STUDIO
-          </span>
+          <Image src="/images/sbosh-beauty-studio-logo.svg" alt={businessProfile.name} width={220} height={56} priority className="h-auto w-[170px] sm:w-[195px]" />
         </Link>
 
         <nav aria-label="Main" className="hidden items-center gap-10 lg:flex">

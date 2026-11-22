@@ -4,6 +4,7 @@ import path from "node:path";
 import pug from "pug";
 import Booking from "@/models/Booking";
 import { businessProfile } from "@/lib/brand";
+import { getStudioContact } from "@/lib/site-settings";
 
 export type BookingEmailType = "ADMIN_NEW_BOOKING" | "CUSTOMER_REQUEST_RECEIVED" | "CUSTOMER_APPROVED" | "CUSTOMER_REJECTED";
 
@@ -12,11 +13,11 @@ type DeliveryResult = { sent: boolean; warning?: string };
 
 let cachedTransport: { key: string; transport: Transporter } | null = null;
 
-function smtpTransport() {
+function smtpTransport(contactEmail: string = businessProfile.contact.email) {
   const host = (process.env.ZOHO_SMTP_HOST || process.env.ZohoSmtp_Host)?.trim();
   const user = (process.env.ZOHO_SMTP_USER || process.env.ZohoSmtp_Username)?.trim();
   const pass = process.env.ZOHO_SMTP_PASS || process.env.ZohoSmtp_Password;
-  const sender = (process.env.ZohoSmtp_FromEmail || user || "").trim();
+  const sender = (process.env.ZohoSmtp_FromEmail || user || contactEmail || "").trim();
   const senderName = (process.env.ZohoSmtp_FromName || businessProfile.name).trim();
   const port = Number(process.env.ZOHO_SMTP_PORT || process.env.ZohoSmtp_Port || 465);
   if (!host || !user || !pass || !Number.isInteger(port) || port < 1 || port > 65535) return null;
@@ -44,7 +45,7 @@ function appointment(date: string, time: string) {
   return `${formatted} at ${time} (${businessProfile.timezone})`;
 }
 
-function contentFor(booking: NonNullable<Awaited<ReturnType<typeof Booking.findById>>>, type: BookingEmailType): EmailContent {
+function contentFor(booking: NonNullable<Awaited<ReturnType<typeof Booking.findById>>>, type: BookingEmailType, studioContact: Awaited<ReturnType<typeof getStudioContact>>): EmailContent {
   const record = booking as unknown as {
     reference: string; customer: { name?: string; email?: string; phone?: string }; service: { name?: string };
     totalPrice?: number; priceNeedsConfirmation?: boolean; preferredDate: string; preferredTime: string;
@@ -77,8 +78,8 @@ function contentFor(booking: NonNullable<Awaited<ReturnType<typeof Booking.findB
     `Hello ${isAdmin ? "Studio Administrator" : record.customer.name || ""},`, "", statusText, "",
     `Reference: ${record.reference}`, `Service or package: ${record.service.name || "Booking"}`,
     `${approved ? "Confirmed appointment" : "Requested appointment"}: ${timeLabel}`, `Total: ${price}`,
-    `Studio: ${businessProfile.name}`, `Phone: ${businessProfile.contact.phone}`, `Address: ${businessProfile.contact.address}`,
-    `Map: ${businessProfile.contact.mapHref}`, ...(isAdmin ? [`Admin dashboard: ${(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")}/admin`, ...(whatsappUrl ? [`Text customer on WhatsApp: ${whatsappUrl}`] : []), ...adminDetails] : []),
+    `Studio: ${businessProfile.name}`, `Phone: ${studioContact.phone}`, `Email: ${studioContact.email}`, `Address: ${studioContact.address}`,
+    `Map: ${studioContact.mapHref}`, ...(isAdmin ? [`Admin dashboard: ${(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")}/admin`, ...(whatsappUrl ? [`Text customer on WhatsApp: ${whatsappUrl}`] : []), ...adminDetails] : []),
   ].filter(Boolean).join("\n");
   const baseLocals = { subject, reference: record.reference, serviceName: record.service.name || "Booking", price, timeLabel };
   const html = isAdmin
@@ -101,10 +102,12 @@ function contentFor(booking: NonNullable<Awaited<ReturnType<typeof Booking.findB
       heading,
       intro: statusText,
       timeCaption: approved ? "Confirmed appointment" : "Requested appointment",
-      phoneHref: businessProfile.contact.phoneHref,
-      mapHref: businessProfile.contact.mapHref,
-      studioPhone: businessProfile.contact.phone,
-      address: businessProfile.contact.address,
+      phoneHref: studioContact.phoneHref,
+      emailHref: studioContact.emailHref,
+      mapHref: studioContact.mapHref,
+      studioPhone: studioContact.phone,
+      studioEmail: studioContact.email,
+      address: studioContact.address,
     });
   return { recipient, subject, text, html };
 }
@@ -119,7 +122,8 @@ function deliveryError(error: unknown) {
 export async function sendBookingEmail(bookingId: mongoose.Types.ObjectId | string, type: BookingEmailType, forceRetry = false): Promise<DeliveryResult> {
   const booking = await Booking.findById(bookingId);
   if (!booking) return { sent: false, warning: "Booking was not found for email delivery." };
-  const message = contentFor(booking, type);
+  const studioContact = await getStudioContact();
+  const message = contentFor(booking, type, studioContact);
   const notifications = booking.notifications as unknown as { _id: mongoose.Types.ObjectId; type: BookingEmailType; status: string; attemptedAt?: Date; attemptCount: number }[];
   const existing = notifications.find((item) => item.type === type);
   if (existing?.status === "SENT") return { sent: true };
@@ -145,7 +149,7 @@ export async function sendBookingEmail(bookingId: mongoose.Types.ObjectId | stri
 
   let status: "SENT" | "FAILED" = "FAILED";
   let failure = "";
-  const mailer = smtpTransport();
+  const mailer = smtpTransport(studioContact.email);
   if (!mailer) failure = "Zoho SMTP is not configured. Set the sender mailbox, app-specific password, host, port, and recipient.";
   else if (!message.recipient) failure = type === "ADMIN_NEW_BOOKING" ? "No admin recipient is configured. Set CONTACT_RECEIVER or ADMIN_EMAIL." : "Customer email address is missing.";
   else {

@@ -5,7 +5,7 @@ export function cloudinaryConfigured() {
 }
 
 export function cloudinaryPublicId(value: unknown) {
-  return typeof value === "string" && /^sbosh-services\/[a-f0-9-]{36}$/.test(value);
+  return typeof value === "string" && /^(?:sbosh-(?:services|gallery)|SboshsNailStudio\/(?:Gallery|Services))\/[a-f0-9-]{36}$/.test(value);
 }
 
 export function cloudinarySignature(parameters: Record<string, string>) {

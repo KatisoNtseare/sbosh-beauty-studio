@@ -6,7 +6,7 @@ export default function Hero() {
   return (
     <section className="relative isolate flex h-[calc(100svh-83px)] items-center overflow-hidden bg-deep-berry">
       <Image
-        src="/images/hero.jpg"
+        src="/images/hero_image.jpg"
         alt=""
         fill
         priority

@@ -13,14 +13,11 @@ export default function StudioGallery() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/services")
+    fetch("/api/gallery")
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to load service photos.");
         const data = await response.json();
-        const services: StudioImage[] = data.services ?? [];
-        const packages: StudioImage[] = data.packages ?? [];
-        const configured = [...services, ...packages].filter((item) => item.image && item.image !== "/images/hero.jpg");
-        setImages(configured);
+        setImages(data.images ?? []);
       })
       .catch(() => setError(true))
       .finally(() => setLoaded(true));
