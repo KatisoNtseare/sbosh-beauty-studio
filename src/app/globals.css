@@ -1,28 +1,30 @@
 @import "tailwindcss";
 @import "react-toastify/dist/ReactToastify.css";
 
-/* Pink on a warm beige studio canvas. */
+/* Deep plum, rose gold and ivory. */
 
 @theme inline {
-  --color-charcoal: #f3ede4;
-  --color-surface: #fcf9f5;
-  --color-raised-surface: #eadfd8;
-  --color-silver: #9f2855;
-  --color-accent-yellow: #c21868;
-  --color-ink-on-accent: #f3ede4;
-  --color-brand-pink: #c21868;
-  --color-strong-pink: #9f174d;
-  --color-pale-blush: #f3ede4;
-  --color-soft-pink: #ead7dd;
-  --color-brand-white: #f3ede4;
-  --color-deep-berry: #84234c;
-  --color-dark-text: #78243f;
-  --color-soft-border: #dec8cf;
+  --color-charcoal: #faf6f1;
+  --color-surface: #fffdfb;
+  --color-raised-surface: #efe3da;
+  --color-silver: #7a3b52;
+  --color-accent-yellow: #a25a68;
+  --color-ink-on-accent: #faf6f1;
+  --color-brand-pink: #a24d69;
+  --color-strong-pink: #6e3550;
+  --color-pale-blush: #f4eae4;
+  --color-soft-pink: #ead9d6;
+  --color-brand-white: #fffbf7;
+  --color-deep-berry: #4a2438;
+  --color-dark-text: #3f2a33;
+  --color-soft-border: #e4d3cc;
+  --color-rose-gold: #e3b5a0;
   --color-success: #247a49;
   --color-warning: #855500;
   --color-error: #b42348;
   --font-display: var(--font-cormorant), serif;
   --font-sans: var(--font-montserrat), sans-serif;
+  --shadow-luxe: 0 28px 60px -28px rgb(74 36 56 / 0.45);
 }
 
 * {
@@ -44,16 +46,64 @@ body {
   color: var(--color-dark-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+@layer components {
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.9rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 2.25rem;
+    height: 1px;
+    background: linear-gradient(90deg, var(--color-rose-gold), transparent);
+  }
+  .gold-rule {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-rose-gold),
+      transparent
+    );
+  }
+  .reveal {
+    animation: reveal-up 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .Toastify__toast {
   border: 1px solid var(--color-soft-border);
-  border-radius: 0.8rem;
+  border-radius: 0.9rem;
   background: var(--color-surface);
   color: var(--color-dark-text);
   font-family: var(--font-sans);
   font-size: 0.875rem;
-  box-shadow: 0 12px 36px rgb(92 35 57 / 0.12);
+  box-shadow: 0 16px 40px rgb(74 36 56 / 0.16);
 }
 
 .Toastify__toast--success { border-color: var(--color-success); }

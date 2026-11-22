@@ -22,7 +22,7 @@ function ServiceImage({ item }: { item: CatalogueItem }) {
 }
 
 function ItemCard({ item, onBook, onView }: { item: CatalogueItem; onBook: (item: CatalogueItem) => void; onView: (item: CatalogueItem) => void }) {
-  return <article className={`group flex h-full flex-col overflow-hidden rounded-2xl border bg-surface shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${item.isPackage ? "border-brand-pink/35 bg-soft-pink" : "border-soft-border hover:border-brand-pink/50"}`}>
+  return <article className={`group flex h-full flex-col overflow-hidden rounded-[22px] border bg-surface shadow-[0_1px_2px_rgb(74_36_56/0.06)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-luxe ${item.isPackage ? "border-rose-gold/60 bg-pale-blush" : "border-soft-border hover:border-rose-gold"}`}>
     <ServiceImage item={item}/>
     <div className="flex flex-1 flex-col p-3 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1"><h3 className="min-w-0 flex-1 basis-20 font-display text-xl font-semibold leading-[1.05] text-deep-berry sm:text-2xl">{item.name}</h3><span className="max-w-full text-right text-[11px] font-bold leading-4 text-deep-berry sm:text-xs">{formatPrice(item)}</span></div>
@@ -120,7 +120,7 @@ export default function ServicesSection() {
     router.push("/cart");
   }
 
-  return <section id="services" className="scroll-mt-24 border-y border-pale-blush bg-soft-pink px-5 py-14 sm:px-6 md:px-12 md:py-20 xl:px-16">
+  return <section id="services" className="scroll-mt-24 bg-pale-blush px-5 py-16 sm:px-6 md:px-12 md:py-24 xl:px-16">
     <div className="mx-auto max-w-7xl">
       <div className="mb-9 grid gap-5 md:grid-cols-[1fr_300px] md:items-end md:gap-10"><div><p className="mb-4 flex items-center gap-3 text-[11px] font-semibold text-deep-berry"><span className="h-px w-8 bg-soft-pink"/>Find your finish</p><h2 className="font-display text-5xl font-semibold leading-[0.95] tracking-tight text-deep-berry md:text-7xl">A little colour, <span className="italic text-deep-berry">a lot of you.</span></h2></div><p className="max-w-sm text-sm leading-6 text-dark-text/75">Explore the current services and pairings. Prices and availability come from the studio’s live catalogue.</p></div>
       <nav aria-label="Service categories" className="sticky top-[4.25rem] z-20 -mx-5 mb-10 flex gap-2 overflow-x-auto border-y border-pale-blush bg-brand-white/95 px-5 py-3 backdrop-blur md:top-[5rem] md:mx-0 md:flex-wrap md:border-0 md:bg-transparent md:px-0 md:py-0">
