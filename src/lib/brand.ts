@@ -10,8 +10,8 @@ export const businessProfile = {
     whatsappHref: "https://wa.me/27813179144",
     email: "info@sboshsbeautystudio.co.za",
     emailHref: "mailto:info@sboshsbeautystudio.co.za",
-    address: "12252 Snakeclose Street, Bram Fischerville 1725, Roodepoort",
-    mapHref: "https://www.google.com/maps/search/?api=1&query=12252+Snakeclose+Street+Bram+Fischerville+1725+Roodepoort",
+    address: "12252 Snake Cl, Braamfischerville, Roodepoort, 1725",
+    mapHref: "https://maps.app.goo.gl/JsFF89dMMBNm2P766",
   },
 } as const;
 

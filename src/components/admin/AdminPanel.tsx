@@ -287,10 +287,10 @@ function GalleryManager({ onMessage, onError }: { onMessage: (message: string) =
   </div>;
 }
 
-type EditableSiteSettings = { phoneNumber: string; whatsappNumber: string; email: string };
+type EditableSiteSettings = { phoneNumber: string; whatsappNumber: string; email: string; address: string; mapHref: string };
 
 function SiteSettingsEditor({ onMessage, onError }: { onMessage: (message: string) => void; onError: (message: string) => void }) {
-  const [settings, setSettings] = useState<EditableSiteSettings>({ phoneNumber: "27813179144", whatsappNumber: "27813179144", email: "info@sboshsbeautystudio.co.za" });
+  const [settings, setSettings] = useState<EditableSiteSettings>({ phoneNumber: "27813179144", whatsappNumber: "27813179144", email: "info@sboshsbeautystudio.co.za", address: "12252 Snake Cl, Braamfischerville, Roodepoort, 1725", mapHref: "https://maps.app.goo.gl/JsFF89dMMBNm2P766" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -317,6 +317,8 @@ function SiteSettingsEditor({ onMessage, onError }: { onMessage: (message: strin
         <label className="text-sm">Phone number<input type="tel" inputMode="tel" required maxLength={24} value={settings.phoneNumber} onChange={(event) => setSettings({ ...settings, phoneNumber: event.target.value })} className={`${input} mt-1`}/></label>
         <label className="text-sm">WhatsApp number<input type="tel" inputMode="tel" required maxLength={24} value={settings.whatsappNumber} onChange={(event) => setSettings({ ...settings, whatsappNumber: event.target.value })} className={`${input} mt-1`}/></label>
         <label className="text-sm sm:col-span-2">Contact email<input type="email" required maxLength={254} value={settings.email} onChange={(event) => setSettings({ ...settings, email: event.target.value })} className={`${input} mt-1`}/></label>
+        <label className="text-sm sm:col-span-2">Working address<input type="text" required maxLength={240} value={settings.address} onChange={(event) => setSettings({ ...settings, address: event.target.value })} className={`${input} mt-1`}/></label>
+        <label className="text-sm sm:col-span-2">Google Maps link<input type="url" required maxLength={2048} value={settings.mapHref} onChange={(event) => setSettings({ ...settings, mapHref: event.target.value })} className={`${input} mt-1`}/></label>
       </div>
       <button type="submit" disabled={saving} className={`${primaryBtn} mt-6`}>{saving ? "Saving…" : "Save site settings"}</button>
     </>}

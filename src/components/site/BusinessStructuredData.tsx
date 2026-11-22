@@ -14,12 +14,13 @@ const business = {
   description: "Nail and lash appointments in Bram Fischerville, Roodepoort, including manicures, gel nails, overlays, nail repair, and buff & shine.",
   address: {
     "@type": "PostalAddress",
-    streetAddress: "12252 Snakeclose Street",
-    addressLocality: "Bram Fischerville",
-    addressRegion: "Gauteng",
+    streetAddress: "12252 Snake Cl",
+    addressLocality: "Braamfischerville",
+    addressRegion: "Roodepoort, Gauteng",
     postalCode: "1725",
     addressCountry: "ZA",
   },
+  hasMap: businessProfile.contact.mapHref,
   areaServed: ["Bram Fischerville", "Roodepoort"],
 };
 

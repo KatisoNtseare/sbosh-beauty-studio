@@ -1,7 +1,7 @@
 import { connectDb } from "@/lib/mongodb";
 import { validAdminSession } from "@/lib/admin-auth";
 import SiteSettings from "@/models/SiteSettings";
-import { getSiteSettings, normalizeContactNumber, validContactEmail } from "@/lib/site-settings";
+import { getSiteSettings, normalizeContactNumber, validContactEmail, validGoogleMapsUrl, validStudioAddress } from "@/lib/site-settings";
 
 export async function GET() {
   if (!(await validAdminSession())) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,15 +16,17 @@ export async function PATCH(request: Request) {
     const phoneNumber = normalizeContactNumber(body.phoneNumber);
     const whatsappNumber = normalizeContactNumber(body.whatsappNumber);
     const email = validContactEmail(body.email);
-    if (!phoneNumber || !whatsappNumber || !email) return Response.json({ error: "Enter valid international phone numbers and a valid email address." }, { status: 400 });
+    const address = validStudioAddress(body.address);
+    const mapHref = validGoogleMapsUrl(body.mapHref);
+    if (!phoneNumber || !whatsappNumber || !email || !address || !mapHref) return Response.json({ error: "Enter valid phone numbers, email, studio address, and Google Maps link." }, { status: 400 });
 
     await connectDb();
     const settings = await SiteSettings.findOneAndUpdate(
       { key: "main" },
-      { $set: { phoneNumber, whatsappNumber, email }, $setOnInsert: { key: "main" } },
+      { $set: { phoneNumber, whatsappNumber, email, address, mapHref }, $setOnInsert: { key: "main" } },
       { upsert: true, returnDocument: "after", runValidators: true, setDefaultsOnInsert: true },
     ).lean();
-    return Response.json({ settings: { phoneNumber: settings?.phoneNumber, whatsappNumber: settings?.whatsappNumber, email: settings?.email } });
+    return Response.json({ settings: { phoneNumber: settings?.phoneNumber, whatsappNumber: settings?.whatsappNumber, email: settings?.email, address: settings?.address, mapHref: settings?.mapHref } });
   } catch {
     return Response.json({ error: "Site settings could not be saved." }, { status: 503 });
   }
