@@ -3,7 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { FiGrid } from "react-icons/fi";
 import { buttonStyles } from "@/lib/button";
 import { cn } from "@/lib/utils";
 import { businessProfile } from "@/lib/brand";
@@ -18,6 +19,16 @@ const links = [
 export default function Navbar() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/admin/session", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.json())
+      .then((data) => setIsAdmin(data.authenticated === true))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
 
@@ -54,6 +65,7 @@ export default function Navbar() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          {isAdmin && <Link href="/admin" aria-label="Open admin dashboard" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-brand-pink/35 bg-surface px-3 text-deep-berry transition-colors hover:bg-pale-blush sm:min-h-11 sm:px-4"><FiGrid aria-hidden="true" size={16}/><span className="hidden sm:inline text-[11px] font-semibold">Dashboard</span></Link>}
           <Link href="/services" className={cn(buttonStyles(), "min-h-10 px-3 text-[10px] sm:min-h-11 sm:px-5 sm:text-[11px]")}>
             <span className="sm:hidden">Book</span><span className="hidden sm:inline">Book appointment</span>
           </Link>

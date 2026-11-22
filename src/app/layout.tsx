@@ -5,6 +5,9 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { businessProfile } from "@/lib/brand";
 import ToastViewport from "@/components/ToastViewport";
+import WhatsAppFloatingButton from "@/components/site/WhatsAppFloatingButton";
+import BusinessStructuredData from "@/components/site/BusinessStructuredData";
+import { studioShareImage } from "@/lib/seo";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -26,6 +29,7 @@ export const metadata: Metadata = {
   applicationName: businessProfile.name,
   icons: {
     icon: [
+      { url: "/favicon/studio-mark.svg", sizes: "any", type: "image/svg+xml" },
       { url: "/favicon/favicon.ico", sizes: "any" },
       { url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -39,9 +43,9 @@ export const metadata: Metadata = {
     siteName: businessProfile.name,
     title: businessProfile.name,
     description: `Manicure, gel nails, overlays, nail repair and buff & shine in Bram Fischerville, Roodepoort.`,
-    images: [{ url: "/images/sbosh-beauty-studio-logo.svg", width: 512, height: 512, alt: businessProfile.name }],
+    images: [studioShareImage],
   },
-  twitter: { card: "summary", title: businessProfile.name, description: `Nail care in Bram Fischerville, Roodepoort.`, images: ["/images/sbosh-beauty-studio-logo.svg"] },
+  twitter: { card: "summary_large_image", title: businessProfile.name, description: `Nail care in Bram Fischerville, Roodepoort.`, images: [studioShareImage.url] },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },
 };
 
@@ -54,9 +58,11 @@ export default function RootLayout({
     <html lang="en" className={`${cormorant.variable} ${montserrat.variable}`}>
       <body className="flex min-h-screen flex-col">
         <ToastViewport />
+        <BusinessStructuredData />
         <Navbar />
         <main className="flex-1">{children}</main>
         <Footer />
+        <WhatsAppFloatingButton />
       </body>
     </html>
   );

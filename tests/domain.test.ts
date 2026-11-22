@@ -48,9 +48,10 @@ describe("service classification and lifecycle", () => {
 });
 
 describe("booking validation and transitions", () => {
-  it("requires a valid customer phone and accepts optional email and notes", () => {
+  it("requires a valid customer phone and email and accepts optional notes", () => {
     expect(validateCustomerFields({ name: "Amahle", phone: "081 317 9144", email: "AMA@EXAMPLE.COM" })).toEqual({ name: "Amahle", phone: "081 317 9144", email: "ama@example.com", description: "" });
-    expect(validateCustomerFields({ name: "Amahle", phone: "0813179144" })).toEqual({ name: "Amahle", phone: "0813179144", description: "" });
+    expect(validateCustomerFields({ name: "Amahle", phone: "0813179144", email: "ama@example.com", description: "Please use a neutral shade." })).toEqual({ name: "Amahle", phone: "0813179144", email: "ama@example.com", description: "Please use a neutral shade." });
+    expect(validateCustomerFields({ name: "Amahle", phone: "0813179144" })).toBeNull();
     expect(validateCustomerFields({ name: "A", phone: "0813179144" })).toBeNull();
     expect(validateCustomerFields({ name: "Amahle", phone: "x".repeat(31) })).toBeNull();
     expect(validateCustomerFields({ name: "Amahle", phone: "0813179144", description: "x".repeat(5001) })).toBeNull();
