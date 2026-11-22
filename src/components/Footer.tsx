@@ -72,7 +72,7 @@ export default function Footer() {
         </div>
 
         <div aria-hidden="true" className="gold-rule mt-14" />
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-charcoal/70"><p>© {new Date().getFullYear()} {businessProfile.name}</p><p>Website by <span className="font-semibold text-charcoal/90">ProIT Solutions</span></p></div>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-charcoal/70"><p>© {businessProfile.name}</p><p>Website by <span className="font-semibold text-charcoal/90">ProIT Solutions</span></p></div>
       </div>
     </footer>
   );
