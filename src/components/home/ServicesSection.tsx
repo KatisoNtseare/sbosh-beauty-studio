@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { FiEye, FiShoppingBag } from "react-icons/fi";
 import { addCartEntry } from "@/lib/cart";
 
 type Extra = { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN" };
@@ -28,12 +29,14 @@ function ItemCard({ item, onBook, onView }: { item: CatalogueItem; onBook: (item
       <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1"><h3 className="min-w-0 flex-1 basis-20 font-display text-xl font-semibold leading-[1.05] text-deep-berry sm:text-2xl">{item.name}</h3><span className="max-w-full text-right text-[11px] font-bold leading-4 text-deep-berry sm:text-xs">{formatPrice(item)}</span></div>
       <p className="mt-2 line-clamp-3 min-h-[3.5rem] text-xs leading-[1.2rem] text-dark-text/85 sm:text-[13px]">{item.description || "A considered treatment from the studio."}</p>
       {item.components?.length ? <p className="mt-2 line-clamp-2 border-l-2 border-soft-pink pl-2.5 text-[11px] leading-4 text-deep-berry sm:mt-3 sm:pl-3 sm:text-xs sm:leading-5">Includes {item.components.map((component) => component.name).join(" + ")}</p> : null}
-      <div className="mt-auto grid gap-2 border-t border-pale-blush pt-3">
-        <button type="button" onClick={() => onView(item)} aria-label={`View full details for ${item.name}`} className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-brand-pink/35 bg-surface px-2 text-xs font-semibold text-deep-berry transition-colors hover:border-brand-pink hover:bg-pale-blush focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-deep-berry sm:text-[13px]">
-          View details
+      <div className="mt-auto grid grid-cols-2 gap-2 border-t border-pale-blush pt-3">
+        <button type="button" onClick={() => onView(item)} aria-label={`View more details for ${item.name}`} title="View more" className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-brand-pink/35 bg-surface px-1.5 text-[11px] font-semibold text-deep-berry transition-colors hover:border-brand-pink hover:bg-pale-blush focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-deep-berry sm:gap-2 sm:px-2 sm:text-xs">
+          <FiEye aria-hidden="true" className="size-4 shrink-0" />
+          <span>More</span>
         </button>
-        <button type="button" onClick={() => onBook(item)} aria-label={`Book ${item.isPackage ? "package" : "service"}: ${item.name}`} className="inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-strong-pink px-2 text-xs font-semibold text-charcoal transition-colors hover:bg-raised-surface hover:text-silver focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-deep-berry sm:text-[13px]">
-          {item.isPackage ? "Book package" : "Book service"}
+        <button type="button" onClick={() => onBook(item)} aria-label={`Book ${item.isPackage ? "package" : "service"}: ${item.name}`} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-strong-pink px-1.5 text-[11px] font-semibold text-charcoal transition-colors hover:bg-raised-surface hover:text-silver focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-deep-berry sm:gap-2 sm:px-2 sm:text-xs">
+          <FiShoppingBag aria-hidden="true" className="size-4 shrink-0" />
+          <span>Book</span>
         </button>
       </div>
     </div>
@@ -123,9 +126,9 @@ export default function ServicesSection() {
   return <section id="services" className="scroll-mt-24 bg-pale-blush px-5 py-16 sm:px-6 md:px-12 md:py-24 xl:px-16">
     <div className="mx-auto max-w-7xl">
       <div className="mb-9 grid gap-5 md:grid-cols-[1fr_300px] md:items-end md:gap-10"><div><p className="mb-4 flex items-center gap-3 text-[11px] font-semibold text-deep-berry"><span className="h-px w-8 bg-soft-pink"/>Find your finish</p><h2 className="font-display text-5xl font-semibold leading-[0.95] tracking-tight text-deep-berry md:text-7xl">A little colour, <span className="italic text-deep-berry">a lot of you.</span></h2></div><p className="max-w-sm text-sm leading-6 text-dark-text/75">Explore the current services and pairings. Prices and availability come from the studio’s live catalogue.</p></div>
-      <nav aria-label="Service categories" className="sticky top-[4.25rem] z-20 -mx-5 mb-10 flex gap-2 overflow-x-auto border-y border-pale-blush bg-brand-white/95 px-5 py-3 backdrop-blur md:top-[5rem] md:mx-0 md:flex-wrap md:border-0 md:bg-transparent md:px-0 md:py-0">
-        {sections.map((section) => <a key={section.title} href={`#${section.title.toLowerCase().replaceAll(" ", "-")}`} className="shrink-0 rounded-full border border-pale-blush bg-surface px-4 py-2 text-xs font-medium text-deep-berry transition-colors hover:border-brand-pink hover:bg-pale-blush">{section.title}</a>)}
-        {extras.length > 0 && <a href="#nail-art-extras" className="shrink-0 rounded-full border border-pale-blush bg-surface px-4 py-2 text-xs font-medium text-deep-berry transition-colors hover:border-brand-pink hover:bg-pale-blush">Nail Art & Extras</a>}
+      <nav aria-label="Service categories" className="sticky top-[4.25rem] z-20 -mx-5 mb-12 mt-2 flex snap-x snap-mandatory gap-3 overflow-x-auto border-y border-pale-blush bg-brand-white/95 px-5 py-5 backdrop-blur md:top-[5rem] md:mx-0 md:flex-wrap md:snap-none md:gap-x-4 md:gap-y-3 md:border-0 md:bg-transparent md:px-0 md:py-4">
+        {sections.map((section) => <a key={section.title} href={`#${section.title.toLowerCase().replaceAll(" ", "-")}`} className="shrink-0 snap-start whitespace-nowrap rounded-full border border-pale-blush bg-surface px-5 py-3 text-[13px] font-medium text-deep-berry shadow-sm transition-colors hover:border-brand-pink hover:bg-pale-blush">{section.title}</a>)}
+        {extras.length > 0 && <a href="#nail-art-extras" className="shrink-0 snap-start whitespace-nowrap rounded-full border border-pale-blush bg-surface px-5 py-3 text-[13px] font-medium text-deep-berry shadow-sm transition-colors hover:border-brand-pink hover:bg-pale-blush">Nail Art & Extras</a>}
       </nav>
       {error ? <p role="alert" className="border-y border-error/50 py-6 text-sm">{error}</p> : !loaded ? <p aria-live="polite" className="border-y border-soft-border py-6 text-sm text-dark-text/70">Loading the service menu…</p> : <>
         {sections.map((section) => <section id={section.title.toLowerCase().replaceAll(" ", "-")} key={section.title} className={`scroll-mt-36 border-t py-8 md:py-10 ${section.title === "Combination Packages" ? "border-brand-pink/35" : "border-pale-blush"}`}>
