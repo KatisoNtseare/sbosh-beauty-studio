@@ -19,9 +19,22 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://sboshsbeautystudio.co.za"),
   title: { default: businessProfile.name, template: `%s | ${businessProfile.name}` },
   description:
     `Manicures, gel nails, overlays, nail repair, and buff & shine at ${businessProfile.name} in Bram Fischerville, Roodepoort.`,
+  applicationName: businessProfile.name,
+  icons: { icon: "/images/sbosh-beauty-studio-logo.svg" },
+  openGraph: {
+    type: "website",
+    locale: "en_ZA",
+    siteName: businessProfile.name,
+    title: businessProfile.name,
+    description: `Manicure, gel nails, overlays, nail repair and buff & shine in Bram Fischerville, Roodepoort.`,
+    images: [{ url: "/images/sbosh-beauty-studio-logo.svg", width: 512, height: 512, alt: businessProfile.name }],
+  },
+  twitter: { card: "summary", title: businessProfile.name, description: `Nail care in Bram Fischerville, Roodepoort.`, images: ["/images/sbosh-beauty-studio-logo.svg"] },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },
 };
 
 export default function RootLayout({

@@ -4,7 +4,7 @@ import { buttonStyles } from "@/lib/button";
 
 export default function Hero() {
   return (
-    <section className="relative isolate flex min-h-[calc(100svh-64px)] items-center overflow-hidden bg-deep-berry md:min-h-[calc(100svh-82px)]">
+    <section className="relative isolate flex h-[70svh] min-h-[70svh] items-center overflow-hidden bg-deep-berry md:h-[calc(100svh-82px)] md:min-h-[calc(100svh-82px)]">
       <Image
         src="/images/hero_image.jpg"
         alt=""
@@ -24,13 +24,13 @@ export default function Hero() {
 
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 md:px-16 md:py-12">
         <div className="reveal max-w-2xl">
-          <p className="eyebrow text-rose-gold">Roodepoort nail studio</p>
+          <p className="eyebrow text-rose-gold">Sbosh&apos;s Beauty studio</p>
           <h1 className="mt-4 font-display text-[clamp(2.45rem,11vw,4rem)] font-semibold leading-[0.94] tracking-[-0.03em] text-charcoal sm:mt-5 md:text-[clamp(2.75rem,7vw,6.5rem)]">
             A fresh set.
             <span className="mt-1 block italic text-rose-gold">A brighter mood.</span>
           </h1>
           <p className="mt-4 max-w-xl text-[13px] leading-[1.55] text-charcoal/90 sm:mt-6 sm:text-base sm:leading-7">
-            Manicure, gel nails, overlay, nail repair and buff &amp; shine — thoughtful care for your next fresh set.
+            Manicure, gel nails, overlay, nail repair and buff &amp; shine - thoughtful care for your next fresh set.
           </p>
           <div className="mt-6 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4 sm:mt-7">
             <Link href="/services" className={buttonStyles({ variant: "light", className: "min-h-12 w-full sm:min-h-14 sm:w-auto sm:min-w-[230px]" })}>

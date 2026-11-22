@@ -84,7 +84,7 @@ Before enabling the seeded catalogue, review existing services in the admin cata
 | Gel Nail Sets | Plain Gel Set R110 · Gel French Set R130 |
 | Pedicures | Plain Pedicure R110 · French Pedicure R130 · Plain Gel Pedicure R100 · Gel French Pedicure R120 |
 | Nail Care | Buff N' Shine R70 |
-| Additional Services | Acrylic Infills, Acrylic Removal / Soak-Off, Gel Removal and Nail Repair — prices to be confirmed |
+| Additional Services | Acrylic Infills, Acrylic Removal / Soak-Off, Gel Removal and Nail Repair - prices to be confirmed |
 
 Optional extras are stored on compatible services: Nail Art (Gems/Rhinestones) R15 per nail, Chrome R20 per nail, 3D Effect R30 per design and Marble Effect R10 per design. Customers choose quantities on the booking page; the server checks compatibility and calculates each line. The browser never supplies an authoritative price.
 

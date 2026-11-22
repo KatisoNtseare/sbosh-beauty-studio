@@ -195,6 +195,7 @@ function GalleryManager({ onMessage, onError }: { onMessage: (message: string) =
 
   async function addPhoto(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     if (!file) { onError("Choose a photo to add to the gallery."); return; }
     setUploading(true);
     const form = new FormData();
@@ -204,7 +205,7 @@ function GalleryManager({ onMessage, onError }: { onMessage: (message: string) =
       const data = await responseData(await fetch("/api/admin/gallery", { method: "POST", body: form }));
       setImages((current) => [data.image, ...current]);
       setName(""); setFile(null);
-      event.currentTarget.reset();
+      formElement.reset();
       onMessage("Photo added to the gallery.");
     } catch (reason) { onError(reason instanceof Error ? reason.message : "Photo could not be uploaded."); }
     finally { setUploading(false); }
