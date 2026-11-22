@@ -4,6 +4,7 @@ import { connectDb } from "@/lib/mongodb";
 import { validAdminSession } from "@/lib/admin-auth";
 import { cloudinaryConfigured, cloudinaryPublicId, cloudinarySignature, destroyCloudinaryImage } from "@/lib/cloudinary";
 import Service from "@/models/Service";
+import { defaultCatalogueImage } from "@/lib/brand";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -31,11 +32,12 @@ export async function POST(request: Request, { params }: Context) {
     const cloud = process.env.CLOUDINARY_CLOUD_NAME!; const key = process.env.CLOUDINARY_API_KEY!; const secret = process.env.CLOUDINARY_API_SECRET!;
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!hasValidSignature(bytes, file.type)) return Response.json({ error: "This file is not a valid JPG, PNG, or WebP image." }, { status: 400 });
-    const publicId = `sbosh-services/${randomUUID()}`; const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signature = cloudinarySignature({ public_id: publicId, timestamp });
+    const folder = "SboshsNailStudio/Services";
+    const publicId = `${folder}/${randomUUID()}`; const timestamp = Math.floor(Date.now() / 1000).toString();
+    const signature = cloudinarySignature({ asset_folder: folder, public_id: publicId, timestamp });
     const body = new FormData();
     body.set("file", new Blob([bytes], { type: file.type }), file.name.replace(/[\r\n"\\]/g, "_").slice(0, 100));
-    body.set("public_id", publicId); body.set("timestamp", timestamp); body.set("api_key", key); body.set("signature", signature);
+    body.set("asset_folder", folder); body.set("public_id", publicId); body.set("timestamp", timestamp); body.set("api_key", key); body.set("signature", signature);
     const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloud)}/image/upload`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString("base64")}` }, body });
     if (!response.ok) return Response.json({ error: "Cloudinary could not accept this image." }, { status: 502 });
     const uploaded = await response.json() as { secure_url?: string; public_id?: string; bytes?: number; format?: string };
@@ -55,7 +57,7 @@ export async function DELETE(_request: Request, { params }: Context) {
     if (!cloudinaryConfigured()) return Response.json({ error: "Image storage is not configured." }, { status: 503 });
     await connectDb(); const service = await Service.findById(id);
     if (!service) return Response.json({ error: "Service not found." }, { status: 404 });
-    const oldPublicId = service.imagePublicId; service.image = "/images/hero.jpg"; service.imagePublicId = ""; await service.save();
+    const oldPublicId = service.imagePublicId; service.image = defaultCatalogueImage; service.imagePublicId = ""; await service.save();
     if (oldPublicId && cloudinaryPublicId(oldPublicId)) await destroyCloudinaryImage(oldPublicId).catch(() => false);
     return Response.json({ service });
   } catch { return Response.json({ error: "Service image could not be removed." }, { status: 503 }); }

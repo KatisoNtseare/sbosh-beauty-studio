@@ -3,6 +3,9 @@ import type { CatalogueExtra, ExtraSelection } from "@/lib/catalogue-pricing";
 import { calculateCatalogueTotal, calculateExtraLines } from "@/lib/catalogue-pricing";
 import Service from "@/models/Service";
 import ServicePackage from "@/models/ServicePackage";
+import { defaultCatalogueImage } from "@/lib/brand";
+
+const catalogueImage = (image?: string) => image && image !== "/images/hero.jpg" ? image : defaultCatalogueImage;
 
 type PricedService = {
   _id: mongoose.Types.ObjectId | string;
@@ -29,7 +32,7 @@ export function buildServiceQuote(service: PricedService, selections: ExtraSelec
       name: service.name,
       description: service.description ?? "",
       fullDescription: service.fullDescription ?? "",
-      image: service.image || "/images/hero.jpg",
+      image: catalogueImage(service.image),
       price: service.price,
       priceConfirmed: basePrice !== null,
       category: service.category ?? "Nail care",
@@ -80,7 +83,7 @@ export async function buildPackageQuote(servicePackage: {
       name: servicePackage.name,
       description: servicePackage.description ?? "",
       fullDescription: components.map((component) => component.name).join(" + "),
-      image: servicePackage.image || components[0]?.image || "/images/hero.jpg",
+      image: catalogueImage(servicePackage.image),
       category: "Combination Packages",
       price: basePrice ?? undefined,
       priceConfirmed: basePrice !== null,

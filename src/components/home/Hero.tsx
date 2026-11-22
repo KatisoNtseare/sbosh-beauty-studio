@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { FiArrowUpRight } from "react-icons/fi";
+import { buttonStyles } from "@/lib/button";
 
 export default function Hero() {
   return (
-    <section className="relative isolate flex min-h-[650px] items-center overflow-hidden bg-ink text-cream md:min-h-[720px]">
+    <section className="relative isolate flex h-[70svh] min-h-[70svh] items-center overflow-hidden bg-deep-berry md:h-[calc(100svh-82px)] md:min-h-[calc(100svh-82px)]">
       <Image
-        src="/images/hero.jpg"
+        src="/images/hero_image.jpg"
         alt=""
         fill
         priority
@@ -15,43 +15,33 @@ export default function Hero() {
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(34,39,33,0.56)_0%,rgba(34,39,33,0.36)_50%,rgba(34,39,33,0.4)_100%),linear-gradient(0deg,rgba(34,39,33,0.5)_0%,rgba(34,39,33,0.08)_75%)]"
+        className="absolute inset-0 -z-10 bg-gradient-to-b from-deep-berry/65 via-deep-berry/75 to-deep-berry/90 md:bg-gradient-to-r md:from-deep-berry/95 md:via-deep-berry/80 md:to-deep-berry/25"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-t from-deep-berry/70 to-transparent"
       />
 
-      <div className="mx-auto flex w-full max-w-7xl justify-center px-5 py-20 md:px-12 md:py-24">
-        <div className="max-w-[900px] text-center">
-          <p className="mb-7 inline-flex min-h-10 items-center gap-2 rounded-full border border-white/35 bg-ink/25 px-4 text-xs font-medium text-white backdrop-blur-sm">
-            <span aria-hidden="true" className="size-2 rounded-full bg-rose" />
-            Your neighbourhood nail studio · Bram Fischerville
-          </p>
-          <h1 className="font-display text-[clamp(3.5rem,8vw,7.25rem)] font-medium leading-[0.91] tracking-[-0.035em] text-white">
-            <span className="block">Thoughtful nail care,</span>
-            <span className="mt-1 block">made personal.</span>
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 md:px-16 md:py-12">
+        <div className="reveal max-w-2xl">
+          <p className="eyebrow text-rose-gold">Sbosh&apos;s Beauty studio</p>
+          <h1 className="mt-4 font-display text-[clamp(2.45rem,11vw,4rem)] font-semibold leading-[0.94] tracking-[-0.03em] text-charcoal sm:mt-5 md:text-[clamp(2.75rem,7vw,6.5rem)]">
+            A fresh set.
+            <span className="mt-1 block italic text-rose-gold">A brighter mood.</span>
           </h1>
-          <p className="mx-auto mt-7 max-w-[650px] text-sm leading-7 text-white/90 sm:text-base md:mt-8">
-            Manicure, gel nails, overlay, nail repair and buff &amp; shine — beautifully finished in Roodepoort.
+          <p className="mt-4 max-w-xl text-[13px] leading-[1.55] text-charcoal/90 sm:mt-6 sm:text-base sm:leading-7">
+            Manicure, gel nails, overlay, nail repair and buff &amp; shine - thoughtful care for your next fresh set.
           </p>
-          <p className="mx-auto mt-2 max-w-xl text-xs leading-6 text-white/75 sm:text-sm">
-            Choose a service and send your request. The studio will confirm your appointment by email.
-          </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link
-              href="/services"
-              className="group inline-flex min-h-14 min-w-[230px] items-center justify-center gap-3 rounded-full border border-rose bg-cream px-8 text-sm font-semibold text-gold-dark shadow-[0_10px_30px_rgba(25,28,23,0.3)] transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-            >
+          <div className="mt-6 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4 sm:mt-7">
+            <Link href="/services" className={buttonStyles({ variant: "light", className: "min-h-12 w-full sm:min-h-14 sm:w-auto sm:min-w-[230px]" })}>
               Book an appointment
-              <FiArrowUpRight aria-hidden="true" className="size-[18px] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </Link>
-            <Link
-              href="#services"
-              className="inline-flex min-h-11 items-center justify-center px-4 text-sm font-medium text-white underline decoration-white/55 underline-offset-[5px] transition-colors hover:decoration-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-            >
-              Explore our services
+            <Link href="/services" className={buttonStyles({ variant: "ghostLight", className: "min-h-12 w-full sm:min-h-14 sm:w-auto" })}>
+              Explore services
             </Link>
           </div>
         </div>
       </div>
-      <div aria-hidden="true" className="absolute bottom-0 left-1/2 h-px w-[min(88%,1160px)] -translate-x-1/2 bg-white/40" />
     </section>
   );
 }

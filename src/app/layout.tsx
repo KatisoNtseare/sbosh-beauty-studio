@@ -19,9 +19,30 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: { default: businessProfile.name, template: `%s | ${businessProfile.name}` },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://sboshsbeautystudio.co.za"),
+  title: { default: businessProfile.name, template: `%s - ${businessProfile.name}` },
   description:
     `Manicures, gel nails, overlays, nail repair, and buff & shine at ${businessProfile.name} in Bram Fischerville, Roodepoort.`,
+  applicationName: businessProfile.name,
+  icons: {
+    icon: [
+      { url: "/favicon/favicon.ico", sizes: "any" },
+      { url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [{ url: "/favicon/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  manifest: "/favicon/site.webmanifest",
+  openGraph: {
+    type: "website",
+    locale: "en_ZA",
+    siteName: businessProfile.name,
+    title: businessProfile.name,
+    description: `Manicure, gel nails, overlays, nail repair and buff & shine in Bram Fischerville, Roodepoort.`,
+    images: [{ url: "/images/sbosh-beauty-studio-logo.svg", width: 512, height: 512, alt: businessProfile.name }],
+  },
+  twitter: { card: "summary", title: businessProfile.name, description: `Nail care in Bram Fischerville, Roodepoort.`, images: ["/images/sbosh-beauty-studio-logo.svg"] },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },
 };
 
 export default function RootLayout({

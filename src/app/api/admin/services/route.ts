@@ -5,9 +5,11 @@ import Service from "@/models/Service";
 import ServicePackage from "@/models/ServicePackage";
 import Booking from "@/models/Booking";
 import { classifyService, serviceRemovalAction, validateServiceFields } from "@/lib/domain";
+import { defaultCatalogueImage } from "@/lib/brand";
 
 function serviceResponse(service: Record<string, unknown>) {
   const clean = { ...service };
+  if (!clean.image || clean.image === "/images/hero.jpg") clean.image = defaultCatalogueImage;
   delete clean.durationMinutes;
   delete clean.durationConfirmed;
   return { ...clean, extras: Array.isArray(clean.extras) ? clean.extras.map((extra) => {
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
     const body = await request.json(); if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ error: "Check the service details." }, { status: 400 });
     const values = validateServiceFields(body);
     if (!values) return Response.json({ error: "Check the service details and price range." }, { status: 400 });
-    await connectDb(); const service = await Service.create({ ...values, image: "/images/hero.jpg" });
+    await connectDb(); const service = await Service.create({ ...values, image: defaultCatalogueImage });
     return Response.json({ service: serviceResponse(service.toObject()) }, { status: 201 });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === 11000) return Response.json({ error: "A service already uses that name." }, { status: 409 });

@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { defaultCatalogueImage } from "@/lib/brand";
 
 const extraSchema = new Schema({
   key: { type: String, required: true, trim: true, maxlength: 80 },
@@ -12,7 +13,7 @@ const serviceSchema = new Schema({
   name: { type: String, required: true, unique: true, trim: true, maxlength: 100 },
   description: { type: String, default: "", maxlength: 500 },
   fullDescription: { type: String, default: "", maxlength: 3000 },
-  image: { type: String, default: "/images/hero.jpg" },
+  image: { type: String, default: defaultCatalogueImage },
   imagePublicId: { type: String, default: "" },
   priceLabel: { type: String, default: "" },
   price: { type: Number, min: 1 },

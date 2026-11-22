@@ -3,6 +3,9 @@ import Service from "@/models/Service";
 import ServicePackage from "@/models/ServicePackage";
 import { calculatePackagePrice } from "@/lib/catalogue-pricing";
 import type { Types } from "mongoose";
+import { defaultCatalogueImage } from "@/lib/brand";
+
+const catalogueImage = (image?: string) => image && image !== "/images/hero.jpg" ? image : defaultCatalogueImage;
 
 type ServiceRow = { _id: Types.ObjectId; name: string; description?: string; fullDescription?: string; image?: string; price?: number; priceConfirmed?: boolean; extras?: { key: string; name: string; unitPrice: number; method: "PER_NAIL" | "PER_DESIGN" }[]; category?: string; displayOrder?: number };
 type PackageRow = { _id: Types.ObjectId; name: string; description?: string; image?: string; serviceIds: Types.ObjectId[]; displayOrder?: number };
@@ -23,7 +26,7 @@ export async function GET() {
       const price = calculatePackagePrice(components.map((component) => component.priceConfirmed && typeof component.price === "number" ? component.price : null));
       const extras = components.flatMap((component) => (component.extras ?? []).map((extra) => ({ ...extra, key: `${String(component._id)}:${extra.key}`, componentId: String(component._id), componentName: component.name })));
       return [{
-        _id: String(item._id), name: item.name, description: item.description, image: item.image || components[0]?.image || "/images/hero.jpg",
+        _id: String(item._id), name: item.name, description: item.description, image: catalogueImage(item.image),
         category: "Combination Packages", isPackage: true,
         price, priceConfirmed: price !== null,
         serviceIds: components.map((component) => String(component._id)),
@@ -31,7 +34,7 @@ export async function GET() {
         extras, displayOrder: item.displayOrder,
       }];
     });
-    return Response.json({ services: serviceRows.map((item) => ({ ...item, _id: String(item._id), image: item.image || "/images/hero.jpg", isPackage: false })), packages: packageOptions });
+    return Response.json({ services: serviceRows.map((item) => ({ ...item, _id: String(item._id), image: catalogueImage(item.image), isPackage: false })), packages: packageOptions });
   } catch {
     return Response.json({ error: "Services are temporarily unavailable." }, { status: 503 });
   }
