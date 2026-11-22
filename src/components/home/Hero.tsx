@@ -24,7 +24,7 @@ export default function Hero() {
 
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 md:px-16 md:py-12">
         <div className="reveal max-w-2xl">
-          <p className="eyebrow text-rose-gold">Sbosh&apos;s Beauty studio</p>
+          <p className="eyebrow text-rose-gold">Bram Fischerville nail &amp; lash studio</p>
           <h1 className="mt-4 font-display text-[clamp(2.45rem,11vw,4rem)] font-semibold leading-[0.94] tracking-[-0.03em] text-charcoal sm:mt-5 md:text-[clamp(2.75rem,7vw,6.5rem)]">
             A fresh set.
             <span className="mt-1 block italic text-rose-gold">A brighter mood.</span>

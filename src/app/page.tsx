@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Hero from "@/components/home/Hero";
 import ServicesSection from "@/components/home/ServicesSection";
 import BookingCta from "@/components/home/BookingCta";
@@ -5,6 +6,18 @@ import PriceList from "@/components/home/PriceList";
 import StudioGallery from "@/components/gallery/StudioGallery";
 import Link from "next/link";
 import { StudioDirectionsLink } from "@/components/site/SiteContact";
+import { businessProfile } from "@/lib/brand";
+
+export const metadata: Metadata = {
+  title: "Nail & Lash Studio in Bram Fischerville",
+  description: `Find your local nail and lash studio in Bram Fischerville, Roodepoort. Book manicures, gel nails, overlays, nail repair, and buff & shine at ${businessProfile.name}.`,
+  openGraph: {
+    title: `Nail & Lash Studio in Bram Fischerville - ${businessProfile.name}`,
+    description: "Nail and lash appointments in Bram Fischerville, Roodepoort. Explore manicures, gel nails, overlays, nail repair, and buff & shine.",
+    url: "/",
+    images: [{ url: "/images/hero_image.jpg", alt: "Nail and lash studio in Bram Fischerville" }],
+  },
+};
 
 export default function Home() {
   return (
@@ -14,12 +27,12 @@ export default function Home() {
       <section className="bg-charcoal px-5 py-16 sm:px-6 md:px-12 md:py-24 xl:px-16">
         <div className="mx-auto grid max-w-7xl gap-6 rounded-[28px] border border-soft-border bg-surface p-8 shadow-luxe sm:grid-cols-[1fr_auto] sm:items-center md:p-14">
           <div>
-            <p className="eyebrow text-brand-pink">A neighbourhood studio</p>
+            <p className="eyebrow text-brand-pink">Your Bram Fischerville studio</p>
             <h2 className="mt-4 font-display text-4xl font-semibold leading-[1.02] text-deep-berry md:text-6xl">
-              A little care, close to home.
+              Nail and lash care, close to home.
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-8 text-dark-text/80">
-              Nail care can be more than the finished look. Find us in Bram Fischerville, Roodepoort.
+              Find your local nail technician in Bram Fischerville, Roodepoort. Explore manicures, gel nails, overlays, nail repair and buff &amp; shine, with lash appointments at the studio too.
             </p>
           </div>
           <StudioDirectionsLink

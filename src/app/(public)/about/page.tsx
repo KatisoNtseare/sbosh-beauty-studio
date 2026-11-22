@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 import { StudioContactActions, StudioDirectionsLink } from "@/components/site/SiteContact";
 
 export const metadata: Metadata = {
-  title: "Our approach",
-  description: `Manicure, gel nails, overlay, nail repair, and buff & shine at ${businessProfile.name} in Bram Fischerville, Roodepoort.`,
+  title: "Local Nail & Lash Studio in Bram Fischerville",
+  description: `${businessProfile.name} is a local nail and lash studio in Bram Fischerville, Roodepoort. Discover manicure, gel nail, overlay, nail repair, and buff & shine services.`,
 };
 
 const principles = [
