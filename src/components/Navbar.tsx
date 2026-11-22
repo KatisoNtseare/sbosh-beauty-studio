@@ -9,8 +9,9 @@ import { businessProfile } from "@/lib/brand";
 
 const links = [
   { href: "/services", label: "Services" },
+  { href: "/pricing", label: "Price list" },
   { href: "/about", label: "About" },
-  { href: "/gallery", label: "Our studio" },
+  { href: "/gallery", label: "Gallery" },
 ];
 
 export default function Navbar() {

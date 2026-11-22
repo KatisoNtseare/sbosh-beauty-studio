@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { FaWhatsapp } from "react-icons/fa";
+import { FiCalendar, FiClock, FiGrid, FiInbox, FiList, FiPackage, FiPlusCircle } from "react-icons/fi";
+import type { IconType } from "react-icons";
 import { businessProfile } from "@/lib/brand";
 import { calculateBookingStats } from "@/lib/admin-stats";
 
@@ -25,6 +27,10 @@ type AdminPackage = { _id: string; name: string; description: string; serviceIds
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const input = "min-h-11 w-full rounded-xl border border-pale-blush bg-surface px-3 text-sm text-dark-text focus:border-brand-pink focus:outline-none focus:ring-2 focus:ring-brand-pink/15 disabled:opacity-50";
+type Section = "overview" | "bookings" | "calendar" | "services-list" | "services-add" | "packages" | "availability";
+const card = "rounded-3xl border border-soft-border bg-surface p-5 shadow-sm md:p-7";
+const primaryBtn = "min-h-11 rounded-xl bg-strong-pink px-5 text-sm font-semibold text-charcoal transition-colors hover:bg-deep-berry disabled:opacity-50";
+const secondaryBtn = "min-h-11 rounded-xl border border-soft-border bg-surface px-4 text-sm font-medium text-deep-berry transition-colors hover:bg-pale-blush";
 const blankPeriod = (): Period => ({ open: "09:00", close: "17:30" });
 const blankWeekly = (): Day[] => dayNames.map((_, weekday) => ({ weekday, enabled: true, periods: [blankPeriod()] }));
 const blankService = (): Omit<AdminService, "_id"> => ({ name: "", description: "", fullDescription: "", image: "/images/hero.jpg", imagePublicId: "", priceLabel: "", category: "Acrylic Nail Sets", classification: "NAILS", priceConfirmed: false, extras: [], displayOrder: 0, active: true });
@@ -42,7 +48,7 @@ export default function AdminPanel() {
   const [bookings, setBookings] = useState<Booking[]>([]); const [counts, setCounts] = useState<Record<string, number>>({});
   const [status, setStatus] = useState("ALL"); const [query, setQuery] = useState(""); const [dateFilter, setDateFilter] = useState(""); const [serviceFilter, setServiceFilter] = useState("ALL");
   const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0); const [serviceNames, setServiceNames] = useState<string[]>([]); const [refreshVersion, setRefreshVersion] = useState(0);
-  const [tab, setTab] = useState<"bookings" | "calendar" | "availability">("bookings"); const [calendarDate, setCalendarDate] = useState("");
+  const [section, setSection] = useState<Section>("overview"); const [calendarDate, setCalendarDate] = useState("");
   const notifySuccess = useCallback((message: string) => { setNotice(message); toast.success(message); }, []);
   const notifyError = useCallback((message: string) => { setError(message); toast.error(message); }, []);
 
@@ -82,20 +88,65 @@ export default function AdminPanel() {
   </form>;
 
   const stats = calculateBookingStats(counts);
-  return <>
-    <header className="mb-8 flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-xs font-semibold text-deep-berry">{businessProfile.name}</p><h1 className="font-display text-5xl font-semibold text-deep-berry md:text-6xl">Studio admin</h1></div><button onClick={() => void logout()} className="min-h-11 rounded-xl border border-pale-blush bg-surface px-4 py-2 text-sm font-medium transition-colors hover:bg-soft-pink">Sign out</button></header>
-    <nav aria-label="Admin sections" className="mb-7 flex flex-wrap gap-3 border-b border-pale-blush">{([["bookings", "Booking requests"], ["calendar", "Calendar"], ["availability", "Availability & services"]] as const).map(([id, label]) => <button key={id} onClick={() => setTab(id)} className={`px-3 py-3 text-sm ${tab === id ? "border-b-2 border-brand-pink font-semibold text-deep-berry" : "text-dark-text/70 hover:text-deep-berry"}`}>{label}</button>)}</nav>
-    {error && <p role="alert" className="mb-4 rounded-xl border border-error/30 bg-surface p-3 text-sm">{error}</p>}{notice && <p role="status" className="mb-4 rounded-xl border border-brand-pink/25 bg-soft-pink p-3 text-sm text-deep-berry">{notice}</p>}
-    {tab === "bookings" && <>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">{[["Requests", stats.requests], ["Pending", stats.pending], ["Approved", stats.approved], ["Rejected", stats.rejected], ["Completed", stats.completed], ["Cancelled", stats.cancelled], ["Upcoming", stats.upcoming]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-pale-blush bg-surface p-4 shadow-sm"><p className="text-xs text-dark-text/70">{label}</p><p className="mt-1 font-display text-3xl font-semibold text-deep-berry">{value}</p></div>)}</div>
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className={input}><option value="ALL">All statuses</option>{["PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].map((value) => <option key={value}>{value}</option>)}</select><input placeholder="Customer, email or reference" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} className={input}/><input type="date" aria-label="Filter by requested or confirmed date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1); }} className={input}/><select value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value); setPage(1); }} className={input}><option value="ALL">All services</option>{serviceNames.map((service) => <option key={service}>{service}</option>)}</select></div>
-      <div className="space-y-3">{filtered.map((booking) => <BookingRow key={booking._id} booking={booking} onAction={(payload) => void updateBooking(booking._id, payload)}/>)}</div>
-      {!filtered.length && <p className="border border-soft-border bg-surface p-8 text-center text-sm text-dark-text/70">No booking requests match these filters.</p>}
-      {total > 0 && <div className="mt-5 flex items-center justify-between text-sm"><span>{total} requests · page {page} of {pages}</span><div className="flex gap-2"><button disabled={page <= 1} onClick={() => setPage(page - 1)} className="border border-soft-border px-4 py-2 disabled:opacity-40">Previous</button><button disabled={page >= pages} onClick={() => setPage(page + 1)} className="border border-soft-border px-4 py-2 disabled:opacity-40">Next</button></div></div>}
-    </>}
-    {tab === "calendar" && <BookingCalendar date={calendarDate} onDate={setCalendarDate}/>}
-    {tab === "availability" && <AvailabilityAndServices onMessage={notifySuccess} onError={notifyError}/>}
-  </>;
+  const go = (id: Section) => { setSection(id); setError(""); setNotice(""); };
+  const goBookings = (nextStatus: string) => { setStatus(nextStatus); setPage(1); go("bookings"); };
+  const statusLabel = (value: string) => (value === "ALL" ? "All" : value.charAt(0) + value.slice(1).toLowerCase());
+  const navGroups: { label?: string; items: { id: Section; label: string; Icon: IconType; badge?: number }[] }[] = [
+    { items: [{ id: "overview", label: "Overview", Icon: FiGrid }] },
+    { label: "Bookings", items: [{ id: "bookings", label: "Booking requests", Icon: FiInbox, badge: stats.pending }, { id: "calendar", label: "Calendar", Icon: FiCalendar }] },
+    { label: "Services", items: [{ id: "services-list", label: "All services", Icon: FiList }, { id: "services-add", label: "Add service", Icon: FiPlusCircle }, { id: "packages", label: "Packages", Icon: FiPackage }] },
+    { label: "Studio", items: [{ id: "availability", label: "Opening hours", Icon: FiClock }] },
+  ];
+  const titles: Record<Section, string> = { overview: "Overview", bookings: "Booking requests", calendar: "Calendar", "services-list": "All services", "services-add": "Add a service", packages: "Packages", availability: "Opening hours" };
+  const quick: { title: string; text: string; Icon: IconType; onClick: () => void }[] = [
+    { title: "Review requests", text: stats.pending ? `${stats.pending} waiting for your answer` : "Nothing waiting right now", Icon: FiInbox, onClick: () => goBookings("PENDING") },
+    { title: "Add a service", text: "Create a new service customers can book", Icon: FiPlusCircle, onClick: () => go("services-add") },
+    { title: "Today’s calendar", text: "See who is coming in", Icon: FiCalendar, onClick: () => go("calendar") },
+  ];
+
+  return <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10">
+    <aside className="lg:sticky lg:top-28 lg:self-start">
+      <div className="rounded-3xl border border-soft-border bg-surface p-3 shadow-luxe lg:p-4">
+        <div className="hidden px-3 pb-3 pt-2 lg:block"><p className="font-display text-3xl font-semibold tracking-[0.1em] text-deep-berry">{businessProfile.logo}</p><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-pink">Studio admin</p></div>
+        <nav aria-label="Admin sections" className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
+          {navGroups.map((group, index) => <div key={index} className="flex gap-1 lg:flex-col">
+            {group.label && <p className="hidden px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-dark-text/60 lg:block">{group.label}</p>}
+            {group.items.map(({ id, label, Icon, badge }) => <button key={id} type="button" onClick={() => go(id)} aria-current={section === id ? "page" : undefined} className={`flex min-h-11 shrink-0 items-center gap-3 rounded-xl px-3 text-sm transition-colors ${section === id ? "bg-strong-pink font-semibold text-charcoal" : "text-dark-text/80 hover:bg-pale-blush"}`}>
+              <Icon aria-hidden="true" size={17}/><span className="flex-1 whitespace-nowrap text-left">{label}</span>
+              {badge ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${section === id ? "bg-charcoal text-deep-berry" : "bg-brand-pink text-charcoal"}`}>{badge}</span> : null}
+            </button>)}
+          </div>)}
+        </nav>
+      </div>
+    </aside>
+
+    <div className="min-w-0">
+      <header className="mb-7"><p className="eyebrow text-brand-pink">{businessProfile.name}</p><div className="mt-3 flex flex-wrap items-end justify-between gap-4"><h1 className="font-display text-5xl font-semibold text-deep-berry">{titles[section]}</h1><button onClick={() => void logout()} className={secondaryBtn}>Sign out</button></div></header>
+      {error && <p role="alert" className="mb-4 rounded-xl border border-error/30 bg-surface p-3 text-sm">{error}</p>}{notice && <p role="status" className="mb-4 rounded-xl border border-brand-pink/25 bg-soft-pink p-3 text-sm text-deep-berry">{notice}</p>}
+
+      {section === "overview" && <div className="space-y-8">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          {([["Pending", stats.pending, "PENDING"], ["Approved", stats.approved, "APPROVED"], ["Completed", stats.completed, "COMPLETED"], ["Upcoming", stats.upcoming, "ALL"]] as const).map(([label, value, filter]) => <button key={label} type="button" onClick={() => goBookings(filter)} className="rounded-2xl border border-soft-border bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-luxe"><p className="text-xs font-medium text-dark-text/70">{label}</p><p className="mt-2 font-display text-5xl font-semibold text-deep-berry">{value}</p></button>)}
+        </div>
+        <div><h2 className="mb-4 font-display text-3xl font-semibold text-deep-berry">What would you like to do?</h2>
+          <div className="grid gap-4 md:grid-cols-3">{quick.map(({ title, text, Icon, onClick }) => <button key={title} type="button" onClick={onClick} className="flex items-start gap-4 rounded-2xl border border-soft-border bg-surface p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-rose-gold hover:shadow-luxe"><span className="grid size-11 shrink-0 place-items-center rounded-full bg-pale-blush text-deep-berry"><Icon aria-hidden="true" size={19}/></span><span><b className="block text-deep-berry">{title}</b><span className="mt-1 block text-sm text-dark-text/70">{text}</span></span></button>)}</div>
+        </div>
+      </div>}
+
+      {section === "bookings" && <>
+        <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+          {["ALL", "PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].map((value) => <button key={value} type="button" aria-pressed={status === value} onClick={() => { setStatus(value); setPage(1); }} className={`min-h-10 rounded-full border px-4 text-xs font-semibold transition-colors ${status === value ? "border-strong-pink bg-strong-pink text-charcoal" : "border-soft-border bg-surface text-deep-berry hover:bg-pale-blush"}`}>{statusLabel(value)} · {value === "ALL" ? stats.requests : counts[value] ?? 0}</button>)}
+        </div>
+        <div className="mb-5 grid gap-3 sm:grid-cols-3"><input placeholder="Search customer, email or reference" aria-label="Search bookings" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} className={input}/><input type="date" aria-label="Filter by requested or confirmed date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1); }} className={input}/><select aria-label="Filter by service" value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value); setPage(1); }} className={input}><option value="ALL">All services</option>{serviceNames.map((service) => <option key={service}>{service}</option>)}</select></div>
+        <div className="space-y-3">{filtered.map((booking) => <BookingRow key={booking._id} booking={booking} onAction={(payload) => void updateBooking(booking._id, payload)}/>)}</div>
+        {!filtered.length && <p className="rounded-2xl border border-dashed border-soft-border bg-surface p-10 text-center text-sm text-dark-text/70">No booking requests match these filters.</p>}
+        {total > 0 && <div className="mt-5 flex items-center justify-between text-sm"><span>{total} requests · page {page} of {pages}</span><div className="flex gap-2"><button disabled={page <= 1} onClick={() => setPage(page - 1)} className={secondaryBtn}>Previous</button><button disabled={page >= pages} onClick={() => setPage(page + 1)} className={secondaryBtn}>Next</button></div></div>}
+      </>}
+
+      {section === "calendar" && <BookingCalendar date={calendarDate} onDate={setCalendarDate}/>}
+      {(section === "availability" || section === "services-list" || section === "services-add" || section === "packages") && <AvailabilityAndServices view={section} onNavigate={go} onMessage={notifySuccess} onError={notifyError}/>}
+    </div>
+  </div>;
 }
 
 function BookingRow({ booking, onAction }: { booking: Booking; onAction: (payload: Record<string, unknown>) => void }) {
@@ -135,10 +186,10 @@ function BookingCalendar({ date, onDate }: { date: string; onDate: (date: string
   useEffect(() => { void fetch(`/api/admin/bookings?date=${chosen}&page=1`).then(responseData).then((data) => { setBookings(data.bookings ?? []); setLoadedDate(chosen); }).catch(() => { setBookings([]); setLoadedDate(chosen); }); }, [chosen]);
   const confirmed = bookings.filter((booking) => booking.status === "APPROVED" && booking.confirmedDate === chosen).sort((a, b) => (a.confirmedStart || "").localeCompare(b.confirmedStart || ""));
   const pending = bookings.filter((booking) => booking.status === "PENDING" && booking.preferredDate === chosen);
-  return <section className="border border-soft-border bg-surface p-5 md:p-7"><label className="mb-6 block max-w-xs text-sm font-medium">Appointments on<input type="date" value={chosen} onChange={(event) => onDate(event.target.value)} className={`${input} mt-2`}/></label>{loadedDate !== chosen ? <p className="text-sm text-dark-text/70">Loading appointments…</p> : <div className="grid gap-8 md:grid-cols-2"><div><h2 className="font-display text-3xl">Confirmed appointments</h2>{confirmed.length ? <ul className="mt-4 divide-y divide-soft-border">{confirmed.map((booking) => <li key={booking._id} className="py-3 text-sm"><b>{booking.confirmedStart}–{booking.confirmedEnd}</b> · {booking.customer.name} · {booking.service.name}<span className="block text-xs text-dark-text/70">{booking.reference}</span></li>)}</ul> : <p className="mt-4 text-sm text-dark-text/70">No confirmed appointments for this date.</p>}</div><div><h2 className="font-display text-3xl">Pending requests</h2>{pending.length ? <ul className="mt-4 divide-y divide-soft-border">{pending.map((booking) => <li key={booking._id} className="py-3 text-sm"><b>{booking.preferredTime}</b> · {booking.customer.name} · {booking.service.name}<span className="block text-xs text-dark-text/70">{booking.reference} · request pending, time held for review</span></li>)}</ul> : <p className="mt-4 text-sm text-dark-text/70">No pending requests for this date.</p>}</div></div>}</section>;
+  return <section className="rounded-3xl border border-soft-border bg-surface p-5 shadow-sm md:p-7"><label className="mb-6 block max-w-xs text-sm font-medium">Appointments on<input type="date" value={chosen} onChange={(event) => onDate(event.target.value)} className={`${input} mt-2`}/></label>{loadedDate !== chosen ? <p className="text-sm text-dark-text/70">Loading appointments…</p> : <div className="grid gap-8 md:grid-cols-2"><div><h2 className="font-display text-3xl">Confirmed appointments</h2>{confirmed.length ? <ul className="mt-4 divide-y divide-soft-border">{confirmed.map((booking) => <li key={booking._id} className="py-3 text-sm"><b>{booking.confirmedStart}–{booking.confirmedEnd}</b> · {booking.customer.name} · {booking.service.name}<span className="block text-xs text-dark-text/70">{booking.reference}</span></li>)}</ul> : <p className="mt-4 text-sm text-dark-text/70">No confirmed appointments for this date.</p>}</div><div><h2 className="font-display text-3xl">Pending requests</h2>{pending.length ? <ul className="mt-4 divide-y divide-soft-border">{pending.map((booking) => <li key={booking._id} className="py-3 text-sm"><b>{booking.preferredTime}</b> · {booking.customer.name} · {booking.service.name}<span className="block text-xs text-dark-text/70">{booking.reference} · request pending, time held for review</span></li>)}</ul> : <p className="mt-4 text-sm text-dark-text/70">No pending requests for this date.</p>}</div></div>}</section>;
 }
 
-function AvailabilityAndServices({ onMessage, onError }: { onMessage: (message: string) => void; onError: (message: string) => void }) {
+function AvailabilityAndServices({ view, onNavigate, onMessage, onError }: { view: Section; onNavigate: (section: Section) => void; onMessage: (message: string) => void; onError: (message: string) => void }) {
   const [weekly, setWeekly] = useState(blankWeekly());
   const [schedulePersisted, setSchedulePersisted] = useState(false);
   const [closedDates, setClosedDates] = useState<string[]>([]);
@@ -200,9 +251,9 @@ function AvailabilityAndServices({ onMessage, onError }: { onMessage: (message: 
     await saveAvailability(weekly, next);
   }
 
-  return <div className="grid items-start gap-8 xl:grid-cols-[1fr_1fr]">
-    <div className="space-y-6">
-      <section className="border border-soft-border bg-surface p-5 md:p-7">
+  return <div className="grid items-start gap-8">
+    {view === "availability" && <div className="space-y-6">
+      <section className="rounded-3xl border border-soft-border bg-surface p-5 shadow-sm md:p-7">
         <h2 className="font-display text-4xl">Regular weekly availability</h2>
         <p className="mb-5 mt-2 text-sm text-dark-text/70">Select a reference date to set the hours that repeat every week for that weekday. All times use {businessProfile.timezone}.</p>
         {!schedulePersisted && <p className="mb-4 border-l-2 border-brand-pink bg-soft-pink/60 p-3 text-sm">Default hours are shown. Save the schedule to store them in the database.</p>}
@@ -222,7 +273,7 @@ function AvailabilityAndServices({ onMessage, onError }: { onMessage: (message: 
         </form>
       </section>
 
-      <section className="border border-soft-border bg-surface p-5 md:p-7">
+      <section className="rounded-3xl border border-soft-border bg-surface p-5 shadow-sm md:p-7">
         <h2 className="font-display text-4xl">Closed dates</h2><p className="mt-2 text-sm text-dark-text/70">Choose specific dates when the studio will not operate. The normal weekly hours return the following week.</p>
         <div className="mt-4 flex gap-2"><input aria-label="Date the studio is closed" type="date" value={closedDate} onChange={(event) => setClosedDate(event.target.value)} className={input}/><button type="button" onClick={() => { if (closedDate) void toggleClosedDate(closedDate).then(() => setClosedDate("")); }} className="shrink-0 border border-soft-border px-3 text-sm">Add closed date</button></div>
         <ul className="mt-3 space-y-2 text-sm">{closedDates.sort().map((date) => <li key={date} className="flex items-center justify-between border-b border-soft-border py-2">{date}<button type="button" onClick={() => void toggleClosedDate(date, true)} className="underline">Remove</button></li>)}</ul>
@@ -231,25 +282,25 @@ function AvailabilityAndServices({ onMessage, onError }: { onMessage: (message: 
 
       {legacyOpeningRules.length > 0 && <aside className="border-l-4 border-error bg-surface p-4 text-sm"><b>Review older opening schedules</b><p className="mt-1">These one-time opening rules are saved for review and do not create bookable hours. Recreate the relevant weekday as a recurring schedule if it should continue.</p><ul className="mt-2 list-inside list-disc">{legacyOpeningRules.map((rule) => <li key={rule.date}>{rule.date}: {rule.periods.map((period) => period.open + "–" + period.close).join(", ") || "hours not recorded"}</li>)}</ul></aside>}
 
-      <section className="border border-soft-border bg-surface p-5 md:p-7">
+      <section className="rounded-3xl border border-soft-border bg-surface p-5 shadow-sm md:p-7">
         <h2 className="font-display text-3xl">Scheduling restrictions</h2><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Time between offered appointments (minutes)<input type="number" min={5} max={480} step={5} value={slotMinutes} onChange={(event) => setSlotMinutes(Number(event.target.value))} className={input + " mt-2"}/></label><label className="text-sm">Buffer between visits (minutes)<input type="number" min={0} max={240} step={5} value={bufferMinutes} onChange={(event) => setBufferMinutes(Number(event.target.value))} className={input + " mt-2"}/></label></div>
         <PeriodEditor heading="Break periods" periods={breaks} onChange={setBreaks}/>
         <div className="mt-5 border-t border-soft-border pt-4"><h3 className="font-semibold">Blocked appointment periods</h3><div className="mt-3 grid gap-2 sm:grid-cols-3"><input aria-label="Blocked period date" type="date" value={blockDate} onChange={(event) => setBlockDate(event.target.value)} className={input}/><input aria-label="Blocked period starts" type="time" value={blockStart} onChange={(event) => setBlockStart(event.target.value)} className={input}/><input aria-label="Blocked period ends" type="time" value={blockEnd} onChange={(event) => setBlockEnd(event.target.value)} className={input}/></div><button type="button" onClick={() => { if (blockDate && blockStart && blockEnd) { setBlockedPeriods([...blockedPeriods, { date: blockDate, start: blockStart, end: blockEnd }]); setBlockStart(""); setBlockEnd(""); } }} className="mt-2 border border-soft-border px-3 py-2 text-xs">Add blocked period</button><ul className="mt-2 space-y-1 text-xs">{blockedPeriods.map((item, index) => <li key={item.date + item.start + index} className="flex gap-2">{item.date} · {item.start}–{item.end}<button type="button" onClick={() => setBlockedPeriods(blockedPeriods.filter((_, i) => i !== index))} className="underline">Remove</button></li>)}</ul></div>
         <button type="button" onClick={() => void saveAvailability()} className="mt-6 bg-strong-pink px-5 py-3 text-sm text-charcoal">Save scheduling settings</button>
       </section>
-    </div>
-    <ServiceEditor services={services} loaded={servicesLoaded} setServices={setServices} onMessage={onMessage} onError={onError}/>
+    </div>}
+    {view !== "availability" && <ServiceEditor view={view} services={services} loaded={servicesLoaded} setServices={setServices} onNavigate={onNavigate} onMessage={onMessage} onError={onError}/>}
   </div>;
 }
 function PeriodEditor({ heading, periods, onChange }: { heading: string; periods: TimeBlock[]; onChange: (periods: TimeBlock[]) => void }) {
   return <div className="mt-5 border-t border-soft-border pt-5"><h3 className="font-semibold">{heading}</h3><div className="mt-3 space-y-2">{periods.map((period, index) => <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2"><label className="text-xs">Starts<input type="time" value={period.start} onChange={(event) => onChange(periods.map((item, i) => i === index ? { ...item, start: event.target.value } : item))} className={`${input} mt-1`}/></label><label className="text-xs">Ends<input type="time" value={period.end} onChange={(event) => onChange(periods.map((item, i) => i === index ? { ...item, end: event.target.value } : item))} className={`${input} mt-1`}/></label><button type="button" onClick={() => onChange(periods.filter((_, i) => i !== index))} className="mt-5 px-2 text-xs underline">Remove</button></div>)}</div><button type="button" onClick={() => onChange([...periods, { start: "13:00", end: "14:00" }])} className="mt-2 text-xs font-semibold text-deep-berry underline">Add {heading.toLowerCase()}</button></div>;
 }
 
-function ServiceEditor({ services, loaded, setServices, onMessage, onError }: { services: AdminService[]; loaded: boolean; setServices: (services: AdminService[]) => void; onMessage: (message: string) => void; onError: (message: string) => void }) {
-  const [draft, setDraft] = useState(blankService()); const [creating, setCreating] = useState(false); const [uploadingId, setUploadingId] = useState("");
+function ServiceEditor({ view, services, loaded, setServices, onNavigate, onMessage, onError }: { view: Section; services: AdminService[]; loaded: boolean; setServices: (services: AdminService[]) => void; onNavigate: (section: Section) => void; onMessage: (message: string) => void; onError: (message: string) => void }) {
+  const [draft, setDraft] = useState(blankService()); const [creating, setCreating] = useState(false); const [uploadingId, setUploadingId] = useState(""); const [search, setSearch] = useState("");
   async function createService(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setCreating(true); onError("");
-    try { const data = await responseData(await fetch("/api/admin/services", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draft) })); setServices([...services, data.service].sort((a, b) => a.displayOrder - b.displayOrder)); setDraft(blankService()); onMessage("Service created."); }
+    try { const data = await responseData(await fetch("/api/admin/services", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draft) })); setServices([...services, data.service].sort((a, b) => a.displayOrder - b.displayOrder)); setDraft(blankService()); onMessage("Service created."); onNavigate("services-list"); }
     catch (reason) { onError(reason instanceof Error ? reason.message : "Service could not be created."); }
     finally { setCreating(false); }
   }
@@ -276,13 +327,38 @@ function ServiceEditor({ services, loaded, setServices, onMessage, onError }: { 
     catch (reason) { onError(reason instanceof Error ? reason.message : "Image could not be removed."); }
   }
   const edit = (id: string, patch: Partial<AdminService>) => setServices(services.map((item) => item._id === id ? { ...item, ...patch } : item));
+  const priceText = (service: AdminService) => (service.priceConfirmed && service.price != null ? `R${service.price}` : "Price to confirm");
+  if (view === "packages") return <PackageEditor services={services.filter((item) => item.active)} onMessage={onMessage} onError={onError}/>;
+  if (view === "services-add") return <form onSubmit={createService} className={card}>
+    <h2 className="font-display text-4xl font-semibold text-deep-berry">New service</h2>
+    <p className="mb-6 mt-2 text-sm text-dark-text/70">Fill in what customers should see before they book. You can add a photo after saving.</p>
+    <ServiceFields value={draft} onChange={(patch) => setDraft({ ...draft, ...patch })}/>
+    <div className="mt-6 flex flex-wrap gap-3"><button disabled={creating} className={primaryBtn}>{creating ? "Creating…" : "Create service"}</button><button type="button" onClick={() => onNavigate("services-list")} className={secondaryBtn}>Cancel</button></div>
+  </form>;
 
-  return <section className="space-y-5"><form onSubmit={createService} className="border border-soft-border bg-surface p-5 md:p-7"><h2 className="font-display text-4xl">Add a service</h2><p className="mb-5 mt-2 text-sm text-dark-text/70">Set the details customers should see before booking.</p><ServiceFields value={draft} onChange={(patch) => setDraft({ ...draft, ...patch })}/><button disabled={creating} className="mt-5 bg-strong-pink px-5 py-3 text-sm text-charcoal disabled:opacity-50">{creating ? "Creating…" : "Create service"}</button></form>
-    <section className="border border-soft-border bg-surface p-5 md:p-7"><h2 className="font-display text-4xl">Manage services</h2><p className="mb-5 mt-2 text-sm text-dark-text/70">Each booking keeps its original price and service details after catalogue changes.</p>{loaded && !services.length && <p className="text-sm text-dark-text/70">No services yet.</p>}<div className="space-y-5">{services.map((service) => <article key={service._id} className="border-t border-soft-border pt-5"><div className="mb-4 flex items-center justify-between gap-4"><h3 className="font-display text-2xl">{service.name}</h3><span className={`text-xs ${service.active ? "font-semibold text-success" : "text-dark-text/70"}`}>{service.active ? "Active" : "Archived"}</span></div><div className="mb-4 flex flex-wrap items-center gap-4"><div className="relative size-24 overflow-hidden bg-soft-pink"><Image src={service.image || "/images/hero.jpg"} alt={`${service.name} service`} fill sizes="96px" unoptimized className="object-cover"/></div><label className="cursor-pointer border border-soft-border px-4 py-2 text-sm">{uploadingId === service._id ? "Uploading…" : "Upload or replace image"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingId === service._id} onChange={(event) => void uploadImage(service, event.target.files?.[0])} className="sr-only"/></label>{service.imagePublicId && <button type="button" onClick={() => void removeImage(service)} className="text-sm underline">Remove image</button>}</div><ServiceFields value={service} onChange={(patch) => edit(service._id, patch)}/><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => void saveService(service)} className="bg-strong-pink px-4 py-2 text-sm text-charcoal">Save changes</button><button onClick={() => void saveService({ ...service, active: !service.active })} className="border border-soft-border px-4 py-2 text-sm">{service.active ? "Deactivate" : "Reactivate"}</button><button onClick={() => void removeService(service)} className="border border-soft-border px-4 py-2 text-sm">Delete or archive</button></div></article>)}</div></section>
-    <PackageEditor services={services.filter((item) => item.active)} onMessage={onMessage} onError={onError}/>
+  const shown = services.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()));
+  const categories = [...new Set(shown.map((item) => item.category || "Other"))];
+  return <section className="space-y-6">
+    <div className="flex flex-wrap items-center gap-3"><input type="search" aria-label="Search services" placeholder="Search services" value={search} onChange={(event) => setSearch(event.target.value)} className={`${input} max-w-sm`}/><span className="text-sm text-dark-text/70">{shown.length} {shown.length === 1 ? "service" : "services"}</span><button type="button" onClick={() => onNavigate("services-add")} className={`${primaryBtn} ml-auto inline-flex items-center gap-2`}><FiPlusCircle aria-hidden="true"/>Add service</button></div>
+    {loaded && !shown.length && <p className="rounded-2xl border border-dashed border-soft-border bg-surface p-10 text-center text-sm text-dark-text/70">{services.length ? "No services match your search." : "No services yet. Add your first one."}</p>}
+    {categories.map((category) => <div key={category}>
+      <h2 className="eyebrow mb-3 text-brand-pink">{category}</h2>
+      <div className="space-y-3">{shown.filter((item) => (item.category || "Other") === category).map((service) => <details key={service._id} className="group overflow-hidden rounded-2xl border border-soft-border bg-surface shadow-sm">
+        <summary className="flex cursor-pointer items-center gap-4 p-3 transition-colors hover:bg-pale-blush">
+          <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-soft-pink"><Image src={service.image || "/images/hero.jpg"} alt="" fill sizes="64px" unoptimized className="object-cover"/></div>
+          <div className="min-w-0 flex-1"><p className="truncate font-semibold text-deep-berry">{service.name}</p><p className="text-xs text-dark-text/70">{priceText(service)}</p></div>
+          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${service.active ? "border-success/25 bg-success/10 text-success" : "border-soft-border bg-pale-blush text-dark-text/70"}`}>{service.active ? "Active" : "Archived"}</span>
+          <span aria-hidden="true" className="px-2 text-xs font-semibold text-brand-pink group-open:hidden">Edit</span><span aria-hidden="true" className="hidden px-2 text-xs font-semibold text-brand-pink group-open:inline">Close</span>
+        </summary>
+        <div className="border-t border-soft-border p-5">
+          <div className="mb-5 flex flex-wrap items-center gap-3"><label className={`${secondaryBtn} inline-flex cursor-pointer items-center`}>{uploadingId === service._id ? "Uploading…" : "Upload or replace image"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingId === service._id} onChange={(event) => void uploadImage(service, event.target.files?.[0])} className="sr-only"/></label>{service.imagePublicId && <button type="button" onClick={() => void removeImage(service)} className="text-sm underline">Remove image</button>}</div>
+          <ServiceFields value={service} onChange={(patch) => edit(service._id, patch)}/>
+          <div className="mt-5 flex flex-wrap gap-2"><button type="button" onClick={() => void saveService(service)} className={primaryBtn}>Save changes</button><button type="button" onClick={() => void saveService({ ...service, active: !service.active })} className={secondaryBtn}>{service.active ? "Deactivate" : "Reactivate"}</button><button type="button" onClick={() => void removeService(service)} className={secondaryBtn}>Delete or archive</button></div>
+        </div>
+      </details>)}</div>
+    </div>)}
   </section>;
 }
-
 function ServiceFields({ value, onChange }: { value: Partial<AdminService>; onChange: (patch: Partial<AdminService>) => void }) {
   return <div className="grid gap-3 sm:grid-cols-2">
     <label className="text-xs">Service name<input required minLength={2} maxLength={100} value={value.name || ""} onChange={(event) => onChange({ name: event.target.value })} className={input + " mt-1"}/></label>
@@ -322,5 +398,5 @@ function PackageEditor({ services, onMessage, onError }: { services: AdminServic
   }
   const serviceChecks = (ids: string[], setIds: (ids: string[]) => void) => <div className="grid gap-2 sm:grid-cols-2">{services.map((service) => <label key={service._id} className="flex items-start gap-2 text-xs"><input type="checkbox" checked={ids.includes(service._id)} onChange={(event) => setIds(event.target.checked ? [...ids, service._id] : ids.filter((id) => id !== service._id))}/><span>{service.name} · {service.priceConfirmed && service.price != null ? `R${service.price}` : "price to be confirmed"}</span></label>)}</div>;
   const fieldSet = (item: { name: string; description: string; serviceIds: string[]; displayOrder: number }, change: (patch: Partial<typeof item>) => void) => <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs">Package name<input required minLength={3} maxLength={120} value={item.name} onChange={(event) => change({ name: event.target.value })} className={input + " mt-1"}/></label><label className="text-xs">Display order<input type="number" min={0} max={10000} value={item.displayOrder} onChange={(event) => change({ displayOrder: Number(event.target.value) })} className={input + " mt-1"}/></label><label className="text-xs sm:col-span-2">Description<textarea maxLength={1000} value={item.description} onChange={(event) => change({ description: event.target.value })} className="mt-1 w-full rounded-lg border border-soft-border bg-surface p-3 text-sm"/></label><div className="text-xs sm:col-span-2"><p className="mb-2 font-medium">Included services</p>{serviceChecks(item.serviceIds, (serviceIds) => change({ serviceIds }))}</div><p className="text-[11px] text-dark-text/70">Package price is always the sum of its included services. No discount is applied.</p></div>;
-  return <section className="border border-soft-border bg-surface p-5 md:p-7"><h2 className="font-display text-4xl">Combination packages</h2><p className="mb-5 mt-2 text-sm text-dark-text/70">Package prices are calculated from the current prices of their included services. No discounts are applied.</p><form onSubmit={savePackage} className="border-b border-soft-border pb-6">{fieldSet(draft, (patch) => setDraft({ ...draft, ...patch }))}<button disabled={saving} className="mt-4 rounded-xl bg-strong-pink px-5 py-3 text-sm font-semibold text-charcoal transition-colors hover:bg-raised-surface hover:text-silver disabled:opacity-50">{saving ? "Saving…" : "Add package"}</button></form>{loaded && !packages.length && <p className="py-4 text-sm text-dark-text/70">No packages have been configured.</p>}<div className="divide-y divide-soft-border">{packages.map((item) => <details key={item._id} className="py-4"><summary className="flex cursor-pointer items-center justify-between gap-4 text-sm font-semibold text-deep-berry"><span>{item.name}</span><span className={`rounded-full border px-2.5 py-1 text-[10px] ${item.active ? "border-success/25 bg-success/10 text-success" : "border-soft-border bg-pale-blush text-dark-text/70"}`}>{item.active ? "Active" : "Archived"}</span></summary><div className="pt-4">{fieldSet(item, (patch) => setPackages(packages.map((existing) => existing._id === item._id ? { ...existing, ...patch } : existing)))}<div className="mt-4 flex gap-2"><button type="button" onClick={() => void updatePackage(item, item)} className="rounded-xl bg-strong-pink px-4 py-2 text-sm font-semibold text-charcoal transition-colors hover:bg-raised-surface hover:text-silver">Save changes</button><button type="button" onClick={() => void updatePackage(item, { active: !item.active })} className="rounded-xl border border-soft-border px-4 py-2 text-sm transition-colors hover:bg-pale-blush">{item.active ? "Deactivate" : "Reactivate"}</button><button type="button" onClick={() => void removePackage(item)} className="rounded-xl border border-soft-border px-4 py-2 text-sm transition-colors hover:bg-pale-blush">Delete or archive</button></div></div></details>)}</div></section>;
+  return <section className="rounded-3xl border border-soft-border bg-surface p-5 shadow-sm md:p-7"><h2 className="font-display text-4xl">Combination packages</h2><p className="mb-5 mt-2 text-sm text-dark-text/70">Package prices are calculated from the current prices of their included services. No discounts are applied.</p><form onSubmit={savePackage} className="border-b border-soft-border pb-6">{fieldSet(draft, (patch) => setDraft({ ...draft, ...patch }))}<button disabled={saving} className="mt-4 rounded-xl bg-strong-pink px-5 py-3 text-sm font-semibold text-charcoal transition-colors hover:bg-raised-surface hover:text-silver disabled:opacity-50">{saving ? "Saving…" : "Add package"}</button></form>{loaded && !packages.length && <p className="py-4 text-sm text-dark-text/70">No packages have been configured.</p>}<div className="divide-y divide-soft-border">{packages.map((item) => <details key={item._id} className="py-4"><summary className="flex cursor-pointer items-center justify-between gap-4 text-sm font-semibold text-deep-berry"><span>{item.name}</span><span className={`rounded-full border px-2.5 py-1 text-[10px] ${item.active ? "border-success/25 bg-success/10 text-success" : "border-soft-border bg-pale-blush text-dark-text/70"}`}>{item.active ? "Active" : "Archived"}</span></summary><div className="pt-4">{fieldSet(item, (patch) => setPackages(packages.map((existing) => existing._id === item._id ? { ...existing, ...patch } : existing)))}<div className="mt-4 flex gap-2"><button type="button" onClick={() => void updatePackage(item, item)} className="rounded-xl bg-strong-pink px-4 py-2 text-sm font-semibold text-charcoal transition-colors hover:bg-raised-surface hover:text-silver">Save changes</button><button type="button" onClick={() => void updatePackage(item, { active: !item.active })} className="rounded-xl border border-soft-border px-4 py-2 text-sm transition-colors hover:bg-pale-blush">{item.active ? "Deactivate" : "Reactivate"}</button><button type="button" onClick={() => void removePackage(item)} className="rounded-xl border border-soft-border px-4 py-2 text-sm transition-colors hover:bg-pale-blush">Delete or archive</button></div></div></details>)}</div></section>;
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { businessProfile } from "@/lib/brand";
+import PriceList from "@/components/home/PriceList";
 
 export const metadata: Metadata = {
   title: "Services and packages",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function PricingPage() {
-  redirect("/services");
+  return <PriceList standalone />;
 }
